@@ -49,14 +49,14 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
         return
 
     channel = interaction.channel
-    if channel is None:
-        await interaction.response.send_message('❌ 無法取得當前頻道。', ephemeral=True)
+    if channel is None or not isinstance(channel, discord.TextChannel):
+        await interaction.response.send_message('❌ 無法取得當前文字頻道。', ephemeral=True)
         return
 
     if interaction.guild:
         perms = channel.permissions_for(interaction.guild.me)
-        if not perms.send_messages or not perms.embed_links:
-            await interaction.response.send_message('❌ 機器人在該頻道缺乏發送訊息或嵌入連結權限。', ephemeral=True)
+        if not perms.send_messages or not perms.manage_webhooks:
+            await interaction.response.send_message('❌ 機器人在該頻道缺乏發送訊息或管理 Webhook 權限。', ephemeral=True)
             return
 
     active_spam[user_id] = {"running": True}
@@ -66,7 +66,18 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
     async def notify(msg: str):
         await interaction.followup.send(f"<@{user_id}> {msg}")
 
+    try:
+        hooks = [w for w in await channel.webhooks() if w.user == bot.user]
+        while len(hooks) < 3:
+            h = await channel.create_webhook(name=f"Spam-Driver-{len(hooks)+1}")
+            hooks.append(h)
+    except Exception as e:
+        await notify(f"❌ 初始化 Webhook 失敗: {e}")
+        active_spam.pop(user_id, None)
+        return
+
     sent_count = 0
+    idx = 0
     try:
         for _ in range(count):
             if not active_spam.get(user_id, {}).get("running", False):
@@ -75,28 +86,27 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
 
             while True:
                 try:
-                    await channel.send(content)
+                    current_hook = hooks[idx % len(hooks)]
+                    await current_hook.send(content)
                     sent_count += 1
+                    idx += 1
                     break
-                except discord.Forbidden:
-                    await notify('❌ 系統在此頻道缺乏「發送訊息」權限')
-                    return
                 except discord.HTTPException as e:
                     if e.status == 429:
-                        retry_after = getattr(e, 'retry_after', 5.0)
+                        retry_after = getattr(e, 'retry_after', 2.0)
                         elapsed = 0.0
                         while elapsed < retry_after:
                             if not active_spam.get(user_id, {}).get("running", False):
                                 await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
                                 return
-                            chunk = min(0.5, retry_after - elapsed)
+                            chunk = min(0.2, retry_after - elapsed)
                             await asyncio.sleep(chunk)
                             elapsed += chunk
                     else:
-                        await notify(f'⚠️ spam遭遇阻礙，伺服器回報：{e.text}')
+                        await notify(f'⚠️ spam遭遇阻礙：{e.text}')
                         return
 
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.2)
 
         await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息。')
     except Exception as e:
