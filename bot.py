@@ -11,7 +11,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 active_spam = {}
 
-MAX_COUNT = 10000
+MAX_COUNT = 1000000000000
 MAX_CONTENT_LEN = 2000
 GUILD_ID = discord.Object(id=1509184700294627430)
 
