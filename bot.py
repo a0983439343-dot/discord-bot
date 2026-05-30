@@ -125,7 +125,7 @@ async def spam(
 
             await asyncio.sleep(0)
 
-        await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息。')
+        await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息')
     except Exception as e:
         print(f"執行指令時發生系統例外: {e}")
         try:
