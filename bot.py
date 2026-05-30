@@ -67,17 +67,17 @@ async def spam(
 
     guild_me = interaction.guild.me
     if guild_me is None:
-        await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊。', ephemeral=True)
+        await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊', ephemeral=True)
         return
 
     for ch in target_channels:
         if not isinstance(ch, (discord.TextChannel, discord.Thread, discord.VoiceChannel)):
-            await interaction.response.send_message(f'❌ {ch.name} 不支援或頻道資料未載入。', ephemeral=True)
+            await interaction.response.send_message(f'❌ {ch.name} 不支援或頻道資料未載入', ephemeral=True)
             return
         
         perms = ch.permissions_for(guild_me)
         if not perms.view_channel or not perms.send_messages:
-            await interaction.response.send_message(f'❌ 機器人在 {ch.mention} 缺乏必要權限。', ephemeral=True)
+            await interaction.response.send_message(f'❌ 機器人在 {ch.mention} 缺乏必要權限', ephemeral=True)
             return
 
     active_spam[user_id] = {"running": True}
@@ -114,7 +114,7 @@ async def spam(
                             elapsed = 0.0
                             while elapsed < retry_after:
                                 if not active_spam.get(user_id, {}).get("running", False):
-                                    await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
+                                    await notify(f'指令已終止，共發送 {sent_count} 則訊息')
                                     return
                                 chunk = min(0.2, retry_after - elapsed)
                                 await asyncio.sleep(chunk)
@@ -129,7 +129,7 @@ async def spam(
     except Exception as e:
         print(f"執行指令時發生系統例外: {e}")
         try:
-            await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）。")
+            await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）")
         except Exception:
             pass
     finally:
