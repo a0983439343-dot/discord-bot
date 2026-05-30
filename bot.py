@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import asyncio
-import time
 import os
 
 intents = discord.Intents.default()
@@ -31,6 +30,10 @@ async def on_ready():
     count=f"請輸入發送次數（1～{MAX_COUNT}）"
 )
 async def spam(interaction: discord.Interaction, content: str, count: int):
+    if not interaction.guild:
+        await interaction.response.send_message('❌ 此指令僅能在伺服器中使用。', ephemeral=True)
+        return
+
     if count < 1 or count > MAX_COUNT:
         await interaction.response.send_message(f'❌ 發送次數必須介於 1 到 {MAX_COUNT} 之間。', ephemeral=True)
         return
@@ -49,36 +52,36 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
         return
 
     channel = interaction.channel
-    if channel is None or not isinstance(channel, discord.TextChannel):
-        await interaction.response.send_message('❌ 無法取得當前文字頻道。', ephemeral=True)
+    if not isinstance(channel, (discord.TextChannel, discord.Thread, discord.VoiceChannel)):
+        await interaction.response.send_message('❌ 不支援的頻道類型或頻道資料未載入。', ephemeral=True)
         return
 
-    if interaction.guild:
-        perms = channel.permissions_for(interaction.guild.me)
-        if not perms.send_messages or not perms.manage_webhooks:
-            await interaction.response.send_message('❌ 機器人在該頻道缺乏發送訊息或管理 Webhook 權限。', ephemeral=True)
-            return
+    guild_me = interaction.guild.me
+    if guild_me is None:
+        await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊。', ephemeral=True)
+        return
+
+    perms = channel.permissions_for(guild_me)
+    if not perms.view_channel or not perms.send_messages:
+        await interaction.response.send_message('❌ 機器人在該頻道缺乏必要權限。', ephemeral=True)
+        return
 
     active_spam[user_id] = {"running": True}
-    embed = discord.Embed(title="✅ Spam Success", description=f"目標頻道: {channel.mention}\n發送次數: {count}", color=0x2ecc71)
-    await interaction.response.send_message(embed=embed)
+    sent_count = 0
 
     async def notify(msg: str):
-        await interaction.followup.send(f"<@{user_id}> {msg}")
+        try:
+            await interaction.followup.send(f"<@{user_id}> {msg}")
+        except Exception:
+            try:
+                await channel.send(f"<@{user_id}> {msg}")
+            except Exception:
+                pass
 
     try:
-        hooks = [w for w in await channel.webhooks() if w.user == bot.user]
-        while len(hooks) < 3:
-            h = await channel.create_webhook(name=f"Spam-Driver-{len(hooks)+1}")
-            hooks.append(h)
-    except Exception as e:
-        await notify(f"❌ 初始化 Webhook 失敗: {e}")
-        active_spam.pop(user_id, None)
-        return
+        embed = discord.Embed(title="✅ Spam Success", description=f"目標頻道: {channel.mention}\n發送次數: {count}", color=0x2ecc71)
+        await interaction.response.send_message(embed=embed)
 
-    sent_count = 0
-    idx = 0
-    try:
         for _ in range(count):
             if not active_spam.get(user_id, {}).get("running", False):
                 await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
@@ -86,10 +89,8 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
 
             while True:
                 try:
-                    current_hook = hooks[idx % len(hooks)]
-                    await current_hook.send(content)
+                    await channel.send(content)
                     sent_count += 1
-                    idx += 1
                     break
                 except discord.HTTPException as e:
                     if e.status == 429:
@@ -106,26 +107,33 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
                         await notify(f'⚠️ spam遭遇阻礙：{e.text}')
                         return
 
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.8)
 
         await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息。')
     except Exception as e:
         print(f"執行指令時發生系統例外: {e}")
+        try:
+            await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）。")
+        except Exception:
+            pass
     finally:
         active_spam.pop(user_id, None)
 
 @bot.tree.command(name="stopspam", description="終止進行中的指令")
 @app_commands.describe(member="指定想終止指令的使用者 (未填寫則預設為操作者本人)")
 async def stopspam(interaction: discord.Interaction, member: discord.Member = None):
+    if not interaction.guild:
+        await interaction.response.send_message('❌ 此指令僅能在伺服器中使用。', ephemeral=True)
+        return
+
     target = member if member else interaction.user
     ALLOWED_ROLE_ID = 1509577038443319416
 
-    if interaction.guild:
-        user_roles = [role.id for role in interaction.user.roles]
-    else:
-        user_roles = []
+    user_roles = [role.id for role in interaction.user.roles]
+    is_admin = interaction.user.guild_permissions.administrator
 
     if (interaction.user.id != 1140900506198351924 and
+            not is_admin and
             ALLOWED_ROLE_ID not in user_roles and
             interaction.user.id != target.id):
         await interaction.response.send_message("❌ 您未具備終止其他使用者指令的權限。", ephemeral=True)
