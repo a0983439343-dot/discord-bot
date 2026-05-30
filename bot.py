@@ -21,7 +21,7 @@ async def on_ready():
     try:
         bot.tree.copy_global_to(guild=GUILD_ID)
         synced = await bot.tree.sync(guild=GUILD_ID)
-        print(f"已成功秒同步 {len(synced)} 項伺服器指令。")
+        print(f"已成功同步 {len(synced)} 項伺服器指令。")
     except Exception as e:
         print(f"同步指令時發生錯誤: {e}")
 
@@ -38,7 +38,7 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
     if not content:
         await interaction.response.send_message('❌ 訊息內容不可為空。', ephemeral=True)
         return
-        
+
     if len(content) > MAX_CONTENT_LEN:
         await interaction.response.send_message(f'❌ 訊息內容不可超過 {MAX_CONTENT_LEN} 字元。', ephemeral=True)
         return
@@ -63,17 +63,14 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
     embed = discord.Embed(title="✅ Spam Success", description=f"目標頻道: {channel.mention}\n發送次數: {count}", color=0x2ecc71)
     await interaction.response.send_message(embed=embed)
 
-    start_time = time.time()
-
-    if not active_spam.get(user_id, {}).get("running"):
-                await channel.send(f"<@{user_id}>  指令已終止，共發送 {sent_count} 則。")
-                return
+    async def notify(msg: str):
+        await interaction.followup.send(f"<@{user_id}> {msg}")
 
     sent_count = 0
     try:
         for _ in range(count):
             if not active_spam.get(user_id, {}).get("running", False):
-                await notify(f' 指令已終止，共發送 {sent_count} 則訊息。')
+                await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
                 return
 
             while True:
@@ -98,7 +95,7 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
                     else:
                         await notify(f'⚠️ spam遭遇阻礙，伺服器回報：{e.text}')
                         return
-            
+
             await asyncio.sleep(0)
 
         await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息。')
@@ -112,13 +109,13 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
 async def stopspam(interaction: discord.Interaction, member: discord.Member = None):
     target = member if member else interaction.user
     ALLOWED_ROLE_ID = 1509577038443319416
-    
+
     if interaction.guild:
         user_roles = [role.id for role in interaction.user.roles]
     else:
         user_roles = []
 
-    if (interaction.user.id != 1509184700294627430 and
+    if (interaction.user.id != 1140900506198351924 and
             ALLOWED_ROLE_ID not in user_roles and
             interaction.user.id != target.id):
         await interaction.response.send_message("❌ 您未具備終止其他使用者指令的權限。", ephemeral=True)
