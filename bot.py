@@ -123,7 +123,7 @@ async def spam(
                             await notify(f'⚠️ {ch.name} 遭遇阻礙：{e.text}')
                             break
 
-            await asyncio.sleep(0.8)
+            await asyncio.sleep(0)
 
         await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息。')
     except Exception as e:
