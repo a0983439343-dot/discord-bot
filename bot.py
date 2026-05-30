@@ -71,7 +71,7 @@ async def spam(
         return
 
     for ch in target_channels:
-        if not isinstance(ch, (discord.TextChannel, discord.Thread, discord.VoiceChannel)):
+        if not isinstance(ch, (discord.TextChannel, discord.Thread)):
             await interaction.response.send_message(f'❌ {ch.name} 不支援或頻道資料未載入', ephemeral=True)
             return
         
