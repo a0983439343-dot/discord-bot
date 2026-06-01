@@ -13,7 +13,7 @@ active_spam = {}
 MAX_COUNT = 1000000000000
 MAX_CONTENT_LEN = 2000
 GUILD_ID = discord.Object(id=1509184700294627430)
-ALLOWED_ROLE_ID = 1509577038443319416  # 修 1：移到模組頂層
+ALLOWED_ROLE_ID = 1509577038443319416
 
 @bot.event
 async def on_ready():
@@ -25,12 +25,11 @@ async def on_ready():
     except Exception as e:
         print(f"同步指令時發生錯誤: {e}")
 
-
 async def run_spam(user_id: int, notify_channel, target_channels: list, content: str, count: int):
     sent_count = 0
 
     async def notify(msg: str):
-        if notify_channel is None:  # 修 3：notify_channel 為 None 時記 log 而非靜默失敗
+        if notify_channel is None:
             print(f"[notify] user={user_id} | {msg}")
             return
         try:
@@ -77,7 +76,6 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
     finally:
         active_spam.pop(user_id, None)
 
-
 class ChannelSelectView(discord.ui.View):
     def __init__(self, user_id: int, content: str, count: int, notify_channel):
         super().__init__(timeout=30)
@@ -102,13 +100,23 @@ class ChannelSelectView(discord.ui.View):
         self.done = True
         self.stop()
 
-        guild_me = interaction.guild.me  # 修 2：在 callback 裡即時取得，而非用建立時的快照
+        guild_me = interaction.guild.me
+        if guild_me is None:
+            await interaction.response.edit_message(content="❌ 無法取得機器人的伺服器成員資訊", embed=None, view=None)
+            active_spam.pop(self.user_id, None)
+            return
 
         target_channels = []
         for raw_ch in select.values:
-            ch = bot.get_channel(raw_ch.id)
+            ch = interaction.guild.get_channel(raw_ch.id)
+            if ch is None:
+                try:
+                    ch = await interaction.guild.fetch_channel(raw_ch.id)
+                except Exception:
+                    pass
+
             if not isinstance(ch, discord.TextChannel):
-                await interaction.response.edit_message(content="❌ 只支援文字頻道", embed=None, view=None)
+                await interaction.response.edit_message(content=f"❌ 頻道資料載入失敗或不支援非文字頻道", embed=None, view=None)
                 active_spam.pop(self.user_id, None)
                 return
 
@@ -120,7 +128,6 @@ class ChannelSelectView(discord.ui.View):
 
             target_channels.append(ch)
 
-        # 修 1：正確顯示總發送數
         total = self.count * len(target_channels)
         channel_mentions = ', '.join([c.mention for c in target_channels])
         embed = discord.Embed(
@@ -128,7 +135,7 @@ class ChannelSelectView(discord.ui.View):
             description=f"目標頻道: {channel_mentions}\n每頻道次數: {self.count}（合計 {total} 則）",
             color=0x2ecc71
         )
-        await interaction.response.edit_message(content=None, embed=embed, view=None)
+        await interaction.response.edit_message(content="", embed=embed, view=None)
 
         asyncio.create_task(run_spam(self.user_id, self.notify_channel, target_channels, self.content, self.count))
 
@@ -140,7 +147,6 @@ class ChannelSelectView(discord.ui.View):
                     await self.message.edit(content="⏰ 已逾時，指令取消", view=None)
                 except Exception:
                     pass
-
 
 @bot.tree.command(name="spam", description="在指定頻道執行指令")
 @app_commands.describe(
@@ -175,10 +181,9 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
 
     active_spam[user_id] = {"running": True}
 
-    view = ChannelSelectView(user_id, content, count, interaction.channel)  # 修 1：移除 guild_me 參數
+    view = ChannelSelectView(user_id, content, count, interaction.channel)
     await interaction.response.send_message("📌 請選擇目標頻道（30 秒內選擇）", view=view)
     view.message = await interaction.original_response()
-
 
 @bot.tree.command(name="stopspam", description="終止進行中的指令")
 @app_commands.describe(member="指定想終止指令的使用者 (未填寫則預設為操作者本人)")
@@ -205,5 +210,5 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
     else:
         await interaction.response.send_message(f"ℹ️ 狀態查詢：{target.mention} 目前並無執行中的指令", ephemeral=True)
 
-
 bot.run(os.environ.get("DISCORD_TOKEN"))
+
