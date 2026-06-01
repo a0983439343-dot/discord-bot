@@ -86,7 +86,9 @@ class ChannelSelectView(discord.ui.View):
         self.done = False
         self.message: discord.Message | None = None
 
-    @discord.ui.channel_select(
+    # ====== 這裡已經修正為正宗 discord.py 語法 ======
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
         placeholder="選擇目標頻道（最多3個）",
         min_values=1,
         max_values=3,
@@ -211,4 +213,3 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
         await interaction.response.send_message(f"ℹ️ 狀態查詢：{target.mention} 目前並無執行中的指令", ephemeral=True)
 
 bot.run(os.environ.get("DISCORD_TOKEN"))
-
