@@ -30,17 +30,16 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
 
     async def notify(msg: str):
         if notify_channel is None:
-            print(f"[notify] user={user_id} | {msg}")
             return
         try:
             await notify_channel.send(f"<@{user_id}> {msg}")
-        except Exception as e:
-            print(f"[notify 失敗] {e}")
+        except Exception:
+            pass
 
     try:
         for _ in range(count):
             if not active_spam.get(user_id, {}).get("running", False):
-                await notify(f'指令已終止，共發送 {sent_count} 則訊息')
+                await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
                 return
 
             for ch in target_channels:
@@ -55,7 +54,7 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
                             elapsed = 0.0
                             while elapsed < retry_after:
                                 if not active_spam.get(user_id, {}).get("running", False):
-                                    await notify(f'指令已終止，共發送 {sent_count} 則訊息')
+                                    await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
                                     return
                                 chunk = min(0.2, retry_after - elapsed)
                                 await asyncio.sleep(chunk)
@@ -67,8 +66,7 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
             await asyncio.sleep(0.01)
 
         await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息')
-    except Exception as e:
-        print(f"執行指令時發生系統例外: {e}")
+    except Exception:
         try:
             await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）")
         except Exception:
@@ -79,18 +77,18 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
 @bot.tree.command(name="spam", description="在指定頻道執行指令")
 @app_commands.describe(
     content="請輸入想發送的訊息內容",
-    count="請輸入發送次數",
-    channel1="目標頻道 1",
-    channel2="目標頻道 2 (選填)",
-    channel3="目標頻道 3 (選填)"
+    count=f"請輸入發送次數（1～{MAX_COUNT}）",
+    ch1="頻道1 (可選)",
+    ch2="頻道2 (可選)",
+    ch3="頻道3 (可選)"
 )
 async def spam(
-    interaction: discord.Interaction, 
-    content: str, 
-    count: int, 
-    channel1: discord.TextChannel, 
-    channel2: discord.TextChannel = None, 
-    channel3: discord.TextChannel = None
+    interaction: discord.Interaction,
+    content: str,
+    count: int,
+    ch1: discord.TextChannel = None,
+    ch2: discord.TextChannel = None,
+    ch3: discord.TextChannel = None
 ):
     if not interaction.guild:
         await interaction.response.send_message('❌ 此指令僅能在伺服器中使用', ephemeral=True)
@@ -113,28 +111,35 @@ async def spam(
         await interaction.response.send_message('⚠️ 您目前已有正在執行的指令，請等待當前指令結束', ephemeral=True)
         return
 
+    target_channels = [c for c in [ch1, ch2, ch3] if c is not None]
+    if not target_channels:
+        target_channels = [interaction.channel]
+
     guild_me = interaction.guild.me
     if guild_me is None:
         await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊', ephemeral=True)
         return
 
-    target_channels = [ch for ch in [channel1, channel2, channel3] if ch is not None]
-    
     for ch in target_channels:
+        if not isinstance(ch, (discord.TextChannel, discord.Thread)):
+            await interaction.response.send_message(f'❌ {ch.name} 不支援或頻道資料未載入', ephemeral=True)
+            return
+        
         perms = ch.permissions_for(guild_me)
         if not perms.view_channel or not perms.send_messages:
-            await interaction.response.send_message(f"❌ 機器人在 {ch.mention} 缺乏必要權限", ephemeral=True)
+            await interaction.response.send_message(f'❌ 機器人在 {ch.mention} 缺乏必要權限', ephemeral=True)
             return
 
     active_spam[user_id] = {"running": True}
 
     channel_mentions = ', '.join([c.mention for c in target_channels])
-    await interaction.response.send_message(f"✅ 已開始在 {channel_mentions} 發送")
+    embed = discord.Embed(title="✅ Spam Success", description=f"目標頻道: {channel_mentions}\n發送次數: {count}", color=0x2ecc71)
+    await interaction.response.send_message(embed=embed)
 
     asyncio.create_task(run_spam(user_id, interaction.channel, target_channels, content, count))
 
 @bot.tree.command(name="stopspam", description="終止進行中的指令")
-@app_commands.describe(member="指定想終止指令的使用者")
+@app_commands.describe(member="指定想終止指令的使用者 (未填寫則預設為操作者本人)")
 async def stopspam(interaction: discord.Interaction, member: discord.Member = None):
     if not interaction.guild:
         await interaction.response.send_message('❌ 此指令僅能在伺服器中使用。', ephemeral=True)
@@ -159,4 +164,3 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
         await interaction.response.send_message(f"ℹ️ 狀態查詢：{target.mention} 目前並無執行中的指令", ephemeral=True)
 
 bot.run(os.environ.get("DISCORD_TOKEN"))
-
