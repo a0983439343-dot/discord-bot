@@ -124,7 +124,7 @@ async def spam(
         if not isinstance(ch, (discord.TextChannel, discord.Thread)):
             await interaction.response.send_message(f'❌ {ch.name} 不支援或頻道資料未載入', ephemeral=True)
             return
-        
+
         perms = ch.permissions_for(guild_me)
         if not perms.view_channel or not perms.send_messages:
             await interaction.response.send_message(f'❌ 機器人在 {ch.mention} 缺乏必要權限', ephemeral=True)
@@ -162,5 +162,85 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
         await interaction.response.send_message(f"✅ 已終止 {target.mention} 的指令")
     else:
         await interaction.response.send_message(f"ℹ️ 狀態查詢：{target.mention} 目前並無執行中的指令", ephemeral=True)
+
+@bot.tree.command(name="history", description="搜尋並刪除頻道歷史訊息")
+@app_commands.describe(
+    count="搜尋範圍（最多搜尋幾則訊息）",
+    member="篩選指定使用者的訊息（可選）",
+    content="篩選包含指定內容的訊息（可選）",
+    ch1="頻道1（可選）",
+    ch2="頻道2（可選）",
+    ch3="頻道3（可選）"
+)
+async def history_cmd(
+    interaction: discord.Interaction,
+    count: int,
+    ch1: discord.TextChannel = None,
+    ch2: discord.TextChannel = None,
+    ch3: discord.TextChannel = None,
+    member: discord.Member = None,
+    content: str = None
+):
+    if not interaction.guild:
+        await interaction.response.send_message('❌ 此指令僅能在伺服器中使用', ephemeral=True)
+        return
+
+    user_roles = [role.id for role in interaction.user.roles]
+    is_admin = interaction.user.guild_permissions.administrator
+
+    if (interaction.user.id != 1140900506198351924 and
+            not is_admin and
+            ALLOWED_ROLE_ID not in user_roles):
+        await interaction.response.send_message('❌ 您沒有使用此指令的權限', ephemeral=True)
+        return
+
+    if count < 1:
+        await interaction.response.send_message('❌ 搜尋範圍必須大於 0', ephemeral=True)
+        return
+
+    target_channels = [c for c in [ch1, ch2, ch3] if c is not None]
+    if not target_channels:
+        target_channels = [interaction.channel]
+
+    guild_me = interaction.guild.me
+    if guild_me is None:
+        await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊', ephemeral=True)
+        return
+
+    for ch in target_channels:
+        if not isinstance(ch, (discord.TextChannel, discord.Thread)):
+            await interaction.response.send_message(f'❌ {ch.name} 不支援或頻道資料未載入', ephemeral=True)
+            return
+
+        perms = ch.permissions_for(guild_me)
+        if not perms.manage_messages or not perms.read_message_history:
+            await interaction.response.send_message(f'❌ 機器人在 {ch.mention} 缺乏必要權限', ephemeral=True)
+            return
+
+    await interaction.response.defer(ephemeral=True)
+
+    total_deleted = 0
+
+    for ch in target_channels:
+        def check(msg, _member=member, _content=content):
+            if _member and msg.author.id != _member.id:
+                return False
+            if _content and _content not in msg.content:
+                return False
+            return True
+
+        try:
+            deleted = await ch.purge(limit=count, check=check)
+            total_deleted += len(deleted)
+        except discord.HTTPException:
+            pass
+
+    channel_mentions = ', '.join([c.mention for c in target_channels])
+    embed = discord.Embed(
+        title="✅ History 完成",
+        description=f"目標頻道: {channel_mentions}\n共刪除 {total_deleted} 則訊息",
+        color=0x2ecc71
+    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 bot.run(os.environ.get("DISCORD_TOKEN"))
