@@ -65,7 +65,7 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
 
             await asyncio.sleep(0.4)
 
-        await notify(f'✅ 發送完成，共發送 {sent_count} 則訊息')
+        await notify(f'✅ 發送完成 共 {sent_count} 則訊息')
     except Exception:
         try:
             await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）")
