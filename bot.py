@@ -17,7 +17,7 @@ ALLOWED_ROLE_ID = 1509577038443319416
 
 @bot.event
 async def on_ready():
-    print(f'{bot.user} 系統已成功連線並啟動')
+    print(f"{bot.user} 系統已成功連線並啟動")
     try:
         bot.tree.copy_global_to(guild=GUILD_ID)
         synced = await bot.tree.sync(guild=GUILD_ID)
@@ -62,8 +62,7 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
                         else:
                             await notify(f'⚠️ {ch.name} 遭遇阻礙：{e.text}')
                             break
-
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.01)
 
         await notify(f'✅ 發送完成 共 {sent_count} 則訊息')
     except Exception:
@@ -115,7 +114,7 @@ async def spam(
     if not target_channels:
         target_channels = [interaction.channel]
 
-    guild_me = interaction.guild.me
+    guild_me = interaction.guild.get_member(bot.user.id)
     if guild_me is None:
         await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊', ephemeral=True)
         return
@@ -146,13 +145,13 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
         return
 
     target = member if member else interaction.user
-
     user_roles = [role.id for role in interaction.user.roles]
     is_admin = interaction.user.guild_permissions.administrator
+    has_role = ALLOWED_ROLE_ID in user_roles
 
     if (interaction.user.id != 1140900506198351924 and
             not is_admin and
-            ALLOWED_ROLE_ID not in user_roles and
+            not has_role and
             interaction.user.id != target.id):
         await interaction.response.send_message("❌ 您未具備終止其他使用者指令的權限", ephemeral=True)
         return
@@ -187,10 +186,11 @@ async def history_cmd(
 
     user_roles = [role.id for role in interaction.user.roles]
     is_admin = interaction.user.guild_permissions.administrator
+    has_role = ALLOWED_ROLE_ID in user_roles
 
     if (interaction.user.id != 1140900506198351924 and
             not is_admin and
-            ALLOWED_ROLE_ID not in user_roles):
+            not has_role):
         await interaction.response.send_message('❌ 您沒有使用此指令的權限', ephemeral=True)
         return
 
@@ -202,7 +202,7 @@ async def history_cmd(
     if not target_channels:
         target_channels = [interaction.channel]
 
-    guild_me = interaction.guild.me
+    guild_me = interaction.guild.get_member(bot.user.id)
     if guild_me is None:
         await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊', ephemeral=True)
         return
@@ -218,7 +218,6 @@ async def history_cmd(
             return
 
     await interaction.response.defer(ephemeral=True)
-
     total_deleted = 0
 
     for ch in target_channels:
@@ -232,8 +231,10 @@ async def history_cmd(
         try:
             deleted = await ch.purge(limit=count, check=check)
             total_deleted += len(deleted)
-        except discord.HTTPException:
-            pass
+        except discord.Forbidden:
+            await interaction.followup.send(f"❌ 沒有權限管理 {ch.mention}", ephemeral=True)
+        except discord.HTTPException as e:
+            await interaction.followup.send(f"❌ {ch.mention} 發生錯誤：{e}", ephemeral=True)
 
     channel_mentions = ', '.join([c.mention for c in target_channels])
     embed = discord.Embed(
