@@ -82,6 +82,9 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
             await asyncio.sleep(0.01)
 
         await notify(f'✅ 發送完成 共 {sent_count} 則訊息')
+    except asyncio.CancelledError:
+        await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
+        raise
     except Exception:
         try:
             await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）")
@@ -160,7 +163,8 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
         resolved = ch.resolve() or interaction.guild.get_channel(ch.id)
         if resolved and isinstance(resolved, (discord.TextChannel, discord.Thread)):
             perms = resolved.permissions_for(guild_me)
-            if perms.view_channel and perms.send_messages:
+            send_allowed = perms.send_messages or getattr(perms, 'send_messages_in_threads', False)
+            if perms.view_channel and send_allowed:
                 valid_channels.append(resolved)
             else:
                 skipped_channels.append(resolved.name)
