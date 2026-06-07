@@ -10,6 +10,7 @@ MAX_COUNT = 1000000000000
 MAX_CONTENT_LEN = 2000
 GUILD_ID = discord.Object(id=1509184700294627430)
 ALLOWED_ROLE_ID = 1509577038443319416
+OWNER_ID = 1140900506198351924
 
 class SpamBot(commands.Bot):
     def __init__(self):
@@ -21,10 +22,14 @@ class SpamBot(commands.Bot):
         self.tree.copy_global_to(guild=GUILD_ID)
         try:
             await self.tree.sync(guild=GUILD_ID)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Sync error: {e}")
 
 bot = SpamBot()
+
+@bot.event
+async def on_ready():
+    print(f"{bot.user} online")
 
 async def run_spam(user_id: int, notify_channel, target_channels: list, content: str, count: int):
     sent_count = 0
@@ -60,12 +65,16 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
                                 await asyncio.sleep(chunk)
                                 elapsed += chunk
                         else:
+                            await notify(f'⚠️ {ch.name} 遭遇阻礙：{e.text}')
                             break
             await asyncio.sleep(0.01)
 
         await notify(f'✅ 發送完成 共 {sent_count} 則訊息')
     except Exception:
-        pass
+        try:
+            await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）")
+        except Exception:
+            pass
     finally:
         active_spam.pop(user_id, None)
 
@@ -83,7 +92,7 @@ class ChannelSelectView(ui.View):
 
     async def select_callback(self, interaction: discord.Interaction):
         self.selected_channels = self.select_menu.values
-        await interaction.response.send_message("✅ 頻道選擇完成，開始執行", ephemeral=True)
+        await interaction.response.edit_message(content="⏳ 正在驗證頻道權限...", view=None)
         self.stop()
 
 @bot.tree.command(name="spam", description="在多個頻道執行指令")
@@ -97,7 +106,7 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
     is_admin = interaction.user.guild_permissions.administrator
     has_role = ALLOWED_ROLE_ID in user_roles
 
-    if not is_admin and interaction.user.id != 1140900506198351924 and not has_role:
+    if not is_admin and interaction.user.id != OWNER_ID and not has_role:
         await interaction.response.send_message('❌ 您沒有使用此指令的權限', ephemeral=True)
         return
 
@@ -110,30 +119,44 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
         return
 
     user_id = interaction.user.id
-    if active_spam.get(user_id, {}).get("running"):
+    if active_spam.get(user_id, {}).get("running", False):
         await interaction.response.send_message('⚠️ 您目前已有正在執行的指令', ephemeral=True)
         return
+
+    guild_me = interaction.guild.get_member(bot.user.id)
+    if not guild_me:
+        await interaction.response.send_message('❌ 無法取得機器人的伺服器成員資訊', ephemeral=True)
+        return
+
+    active_spam[user_id] = {"running": False}
 
     view = ChannelSelectView()
     await interaction.response.send_message("請選擇要發送的頻道：", view=view, ephemeral=True)
     await view.wait()
 
     if not view.selected_channels:
+        active_spam.pop(user_id, None)
+        await interaction.followup.send('⌛ 選擇逾時，指令已取消', ephemeral=True)
         return
 
-    guild_me = interaction.guild.get_member(bot.user.id)
     valid_channels = []
-    
     for ch in view.selected_channels:
-        perms = ch.permissions_for(guild_me)
-        if perms.view_channel and perms.send_messages:
-            valid_channels.append(ch)
+        resolved = ch.resolve() or interaction.guild.get_channel(ch.id)
+        if resolved and isinstance(resolved, (discord.TextChannel, discord.Thread)):
+            perms = resolved.permissions_for(guild_me)
+            if perms.view_channel and perms.send_messages:
+                valid_channels.append(resolved)
 
     if not valid_channels:
+        active_spam.pop(user_id, None)
         await interaction.followup.send('❌ 機器人在所選頻道缺乏權限', ephemeral=True)
         return
 
     active_spam[user_id] = {"running": True}
+    channel_mentions = ', '.join([c.mention for c in valid_channels])
+    embed = discord.Embed(title="✅ Spam Success", description=f"目標頻道: {channel_mentions}\n發送次數: {count}", color=0x2ecc71)
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
     task = asyncio.create_task(run_spam(user_id, interaction.channel, valid_channels, content, count))
     active_spam[user_id]["task"] = task
 
@@ -149,13 +172,13 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
     is_admin = interaction.user.guild_permissions.administrator
     has_role = ALLOWED_ROLE_ID in user_roles
 
-    if not is_admin and interaction.user.id != 1140900506198351924 and not has_role and interaction.user.id != target.id:
+    if not is_admin and interaction.user.id != OWNER_ID and not has_role and interaction.user.id != target.id:
         await interaction.response.send_message("❌ 您未具備終止其他使用者指令的權限", ephemeral=True)
         return
 
     if active_spam.get(target.id, {}).get("running"):
         active_spam[target.id]["running"] = False
-        await interaction.response.send_message(f"✅ 已終止 <@{target.id}> 的指令")
+        await interaction.response.send_message(f"✅ 已終止 <@{target.id}> 的指令", ephemeral=True)
     else:
         await interaction.response.send_message("ℹ️ 目前並無執行中的指令", ephemeral=True)
 
@@ -170,7 +193,7 @@ async def history_cmd(interaction: discord.Interaction, count: int, ch1: discord
     is_admin = interaction.user.guild_permissions.administrator
     has_role = ALLOWED_ROLE_ID in user_roles
 
-    if interaction.user.id != 1140900506198351924 and not is_admin and not has_role:
+    if interaction.user.id != OWNER_ID and not is_admin and not has_role:
         await interaction.response.send_message('❌ 您沒有使用此指令的權限', ephemeral=True)
         return
 
@@ -197,17 +220,17 @@ async def history_cmd(interaction: discord.Interaction, count: int, ch1: discord
     await interaction.response.defer(ephemeral=True)
     total_deleted = 0
 
-    for ch in target_channels:
-        def check(msg):
-            if member and msg.author.id != member.id: return False
-            if content and content not in msg.content: return False
-            return True
+    def check(msg):
+        if member and msg.author.id != member.id: return False
+        if content and content not in msg.content: return False
+        return True
 
+    for ch in target_channels:
         try:
             deleted = await ch.purge(limit=count, check=check)
             total_deleted += len(deleted)
-        except Exception:
-            pass
+        except Exception as e:
+            await interaction.followup.send(f"⚠️ {ch.mention} 清理失敗: {e}", ephemeral=True)
 
     embed = discord.Embed(
         title="✅ History 完成", 
@@ -216,4 +239,4 @@ async def history_cmd(interaction: discord.Interaction, count: int, ch1: discord
     )
     await interaction.followup.send(embed=embed, ephemeral=True)
 
-bot.run(os.environ.get("DISCORD_TOKEN"))
+bot.run(os.environ["DISCORD_TOKEN"])
