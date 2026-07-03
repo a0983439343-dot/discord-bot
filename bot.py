@@ -124,8 +124,13 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
         await interaction.response.send_message('⚠️ 您目前已有正在執行的指令', ephemeral=True)
         return
 
-    user_roles = [role.id for role in interaction.user.roles]
-    is_admin = interaction.user.guild_permissions.administrator
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member:
+        await interaction.response.send_message('❌ 無法取得使用者資訊', ephemeral=True)
+        return
+
+    user_roles = [role.id for role in member.roles]
+    is_admin = member.guild_permissions.administrator
     has_role = ALLOWED_ROLE_ID in user_roles
 
     if not is_admin and interaction.user.id != OWNER_ID and not has_role:
@@ -189,8 +194,14 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
 @app_commands.describe(member="指定想終止指令的使用者")
 async def stopspam(interaction: discord.Interaction, member: discord.Member = None):
     target = member or interaction.user
-    user_roles = [role.id for role in interaction.user.roles]
-    is_admin = interaction.user.guild_permissions.administrator
+
+    invoker = interaction.guild.get_member(interaction.user.id)
+    if not invoker:
+        await interaction.response.send_message("❌ 無法取得使用者資訊", ephemeral=True)
+        return
+
+    user_roles = [role.id for role in invoker.roles]
+    is_admin = invoker.guild_permissions.administrator
     
     if not is_admin and interaction.user.id != OWNER_ID and ALLOWED_ROLE_ID not in user_roles and interaction.user.id != target.id:
         await interaction.response.send_message("❌ 無權限", ephemeral=True)
@@ -208,8 +219,13 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
 @bot.tree.command(name="history", description="搜尋並刪除頻道歷史訊息")
 @app_commands.describe(count="搜尋範圍 (1-1000)", member="篩選使用者", content="篩選內容", ch1="頻道1", ch2="頻道2", ch3="頻道3")
 async def history_cmd(interaction: discord.Interaction, count: app_commands.Range[int, 1, 1000], ch1: discord.TextChannel = None, ch2: discord.TextChannel = None, ch3: discord.TextChannel = None, member: discord.Member = None, content: str = None):
-    user_roles = [role.id for role in interaction.user.roles]
-    is_admin = interaction.user.guild_permissions.administrator
+    invoker = interaction.guild.get_member(interaction.user.id)
+    if not invoker:
+        await interaction.response.send_message('❌ 無法取得使用者資訊', ephemeral=True)
+        return
+
+    user_roles = [role.id for role in invoker.roles]
+    is_admin = invoker.guild_permissions.administrator
     
     if interaction.user.id != OWNER_ID and not is_admin and ALLOWED_ROLE_ID not in user_roles:
         await interaction.response.send_message('❌ 無權限', ephemeral=True)
