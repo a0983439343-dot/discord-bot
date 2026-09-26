@@ -1,1 +1,6 @@
-discord.py
+discord.py>=2.5.0
+yt-dlp
+PyNaCl
+aiohttp
+qrcode[pil]
+Pillow
