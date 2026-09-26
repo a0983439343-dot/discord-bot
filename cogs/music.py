@@ -137,17 +137,29 @@ class MusicCog(commands.Cog):
         loop = asyncio.get_running_loop()
         def task():
             with yt_dlp.YoutubeDL(YTDL_SEARCH) as ydl:
-                data = ydl.extract_info(query, download=False)
-                return data.get("entries", []) if data else []
-        entries = await loop.run_in_executor(None, task)
+                return ydl.extract_info(query, download=False)
+        data = await loop.run_in_executor(None, task)
+        if not data:
+            return []
+        entries = data.get("entries") if isinstance(data, dict) else None
+        if entries is None:
+            entries = [data]
         results = []
         for entry in entries:
             if not entry:
                 continue
-            url = entry.get("url")
-            webpage = entry.get("webpage_url") or (f"https://www.youtube.com/watch?v={entry.get('id')}" if entry.get("id") else None)
-            if url and webpage:
-                results.append(Song(title=entry.get("title") or "不知道這首叫什麼", url=url, webpage_url=webpage, duration=entry.get("duration")))
+            webpage = entry.get("webpage_url") or entry.get("original_url")
+            if not webpage and entry.get("id"):
+                webpage = f"https://www.youtube.com/watch?v={entry['id']}"
+            if webpage:
+                results.append(
+                    Song(
+                        title=entry.get("title") or "不知道這首叫什麼",
+                        url=entry.get("url") or webpage,
+                        webpage_url=webpage,
+                        duration=entry.get("duration"),
+                    )
+                )
         return results
 
     async def make_stream(self, song: Song):
