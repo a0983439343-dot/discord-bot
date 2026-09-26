@@ -1,26 +1,247 @@
-(()=>{"use strict";
-const C=Object.assign({brandName:"Discord Bot",shortName:"B",creator:"Your Name",version:"v1.0.0",inviteUrl:"",supportUrl:"",githubUrl:"",statusEndpoint:""},window.BOT_SITE_CONFIG||{});
-const COMMANDS=Array.isArray(window.BOT_COMMANDS)?window.BOT_COMMANDS:[];
-const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
-const escapeHtml=v=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-function toast(message,kind="info"){const s=$("#toastStack");if(!s)return;const x=document.createElement("div");x.className="toast "+kind;x.innerHTML="<span>"+(kind==="success"?"✓":kind==="warning"?"!":"i")+"</span><p></p>";x.querySelector("p").textContent=message;s.appendChild(x);requestAnimationFrame(()=>x.classList.add("show"));setTimeout(()=>{x.classList.remove("show");setTimeout(()=>x.remove(),240)},3400)}
-function initConfig(){$$("[data-brand-name]").forEach(x=>x.textContent=C.brandName);$$("[data-version]").forEach(x=>x.textContent=C.version);const cr=$("[data-creator]");if(cr)cr.textContent=C.creator||"—";$$(".github-link").forEach(x=>{if(C.githubUrl)x.href=C.githubUrl;else x.style.display="none"});$$(".invite-link").forEach(x=>{if(C.inviteUrl){x.href=C.inviteUrl;x.target="_blank";x.rel="noreferrer"}else{x.href="#";x.addEventListener("click",e=>{e.preventDefault();toast("尚未設定 Discord 邀請連結，請在 site-config.js 填入 inviteUrl。","warning")})}});$$(".support-link").forEach(x=>{if(C.supportUrl){x.href=C.supportUrl;x.target="_blank";x.rel="noreferrer"}else{x.href="#";x.addEventListener("click",e=>{e.preventDefault();toast("尚未設定支援伺服器連結，請在 site-config.js 填入 supportUrl。","warning")})}});document.title=C.brandName+" — Official"}
-function setupNav(){const h=$(".site-header"),b=$("#menuBtn");b.addEventListener("click",()=>{const o=h.classList.toggle("menu-open");b.setAttribute("aria-expanded",String(o))});$$("#mobileMenu a").forEach(a=>a.addEventListener("click",()=>h.classList.remove("menu-open")));addEventListener("scroll",()=>h.classList.toggle("scrolled",scrollY>12),{passive:true})}
-function setupTheme(){const b=$("#themeBtn"),i=$("#themeIcon");let t=localStorage.getItem("bot-site-theme")||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark");const apply=()=>{document.documentElement.dataset.theme=t;i.textContent=t==="dark"?"☼":"◐";localStorage.setItem("bot-site-theme",t)};apply();b.addEventListener("click",()=>{t=t==="dark"?"light":"dark";apply();toast(t==="dark"?"已切換深色模式。":"已切換淺色模式。","success")})}
-function renderCommands(filter="all",query=""){const list=$("#commandList"),q=query.trim().toLowerCase();if(!list)return;const data=COMMANDS.filter(c=>(filter==="all"||c.category===filter)&&(!q||[c.name,c.title,c.desc,c.category,c.params].join(" ").toLowerCase().includes(q)));list.innerHTML="";if(!data.length){list.innerHTML='<div class="empty-state"><span>⌕</span><strong>找不到符合條件的指令</strong><p>試試其他關鍵字或分類。</p></div>';return}data.forEach(c=>{const card=document.createElement("article");card.className="command-card reveal show";card.innerHTML='<div class="command-main"><div class="command-name-row"><code>'+escapeHtml(c.name)+'</code><span class="command-category">'+escapeHtml(c.category)+'</span></div><h3>'+escapeHtml(c.title)+'</h3><p>'+escapeHtml(c.desc)+'</p></div><div class="command-side"><span class="command-param">'+escapeHtml(c.params)+'</span><button class="copy-command" type="button">複製範例</button></div>';card.querySelector(".copy-command").addEventListener("click",()=>copyExample(c.example,card.querySelector(".copy-command")));list.appendChild(card)})}
-async function copyExample(text,b){try{await navigator.clipboard.writeText(text);b.textContent="✓ 已複製";toast("已複製指令範例。","success");setTimeout(()=>b.textContent="複製範例",1400)}catch{toast("瀏覽器拒絕剪貼簿存取，請手動複製。","warning")}}
-function setupCommands(){renderCommands();$$(".filter-btn").forEach(b=>b.addEventListener("click",()=>{$$(".filter-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderCommands(b.dataset.commandFilter)}));$("#commandSearchBtn").addEventListener("click",openSearch)}
-function openModal(m){if(!m)return;m.classList.add("open");m.setAttribute("aria-hidden","false")}function closeModal(m){if(!m)return;m.classList.remove("open");m.setAttribute("aria-hidden","true")}
-function openSearch(){openModal($("#searchModal"));setTimeout(()=>$("#siteSearchInput")?.focus(),70)}
-function renderSearch(q=""){const out=$("#searchResults"),s=q.trim().toLowerCase();if(!out)return;if(!s){out.innerHTML='<span class="muted">輸入關鍵字開始搜尋</span>';return}const ch=COMMANDS.filter(c=>[c.name,c.title,c.desc,c.category].join(" ").toLowerCase().includes(s)).slice(0,9),pages=[["Getting Started","快速開始使用 Bot","getting-started"],["Permissions","授權與權限說明","permissions"],["FAQ","常見問題","faq"],["Status","即時服務狀態","status"],["Updates","版本與更新日誌","updates"],["Interactive","互動 Demo","interactive"]].filter(x=>x.join(" ").toLowerCase().includes(s));out.innerHTML="";if(!ch.length&&!pages.length){out.innerHTML='<div class="search-empty">沒有找到結果。</div>';return}ch.forEach(c=>{const r=document.createElement("button");r.className="search-row";r.innerHTML='<span class="search-type">COMMAND</span><strong>'+escapeHtml(c.name)+'</strong><small>'+escapeHtml(c.title)+'</small>';r.onclick=()=>{closeModal($("#searchModal"));location.hash="#commands";setTimeout(()=>renderCommands("all",c.name),40)};out.appendChild(r)});pages.forEach(p=>{const r=document.createElement("button");r.className="search-row";r.innerHTML='<span class="search-type">PAGE</span><strong>'+escapeHtml(p[0])+'</strong><small>'+escapeHtml(p[1])+'</small>';r.onclick=()=>{closeModal($("#searchModal"));location.hash="#"+p[2]};out.appendChild(r)})}
-function setupSearch(){$$(".search-trigger").forEach(b=>b.addEventListener("click",openSearch));$("#commandSearchBtn")?.addEventListener("click",openSearch);$("#searchModal").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal(e.currentTarget)});$("#featureModal").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal(e.currentTarget)});$(".modal-close",$("#searchModal")).addEventListener("click",()=>closeModal($("#searchModal")));$(".modal-close",$("#featureModal")).addEventListener("click",()=>closeModal($("#featureModal")));$("#siteSearchInput").addEventListener("input",e=>renderSearch(e.target.value));document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openSearch()}if(e.key==="/"&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){e.preventDefault();openSearch()}if(e.key==="Escape")$$(".modal-backdrop.open").forEach(closeModal)})}
-function setupFeatures(){const data={entertainment:{title:"Core Features",items:[["/spam","授權使用者可選擇多個文字頻道並發送指定內容與次數。"],["權限檢查","一般管理員、Owner 或指定角色才可使用高風險功能。"],["頻道驗證","執行前檢查機器人在目標頻道是否可查看與發送。"]]},social:{title:"Control",items:[["/stopspam","可停止自己目前執行中的工作；具備權限者可停止指定使用者。"],["單一工作鎖","同一使用者不能同時啟動多個發送工作。"],["停止處理","停止時會中止任務並回報已完成的發送量。"]]},utilities:{title:"History & Cleanup",items:[["/history","可搜尋指定範圍的歷史訊息並依成員或內容篩選。"],["權限驗證","刪除前確認機器人具有管理訊息與讀取歷史的必要權限。"],["錯誤回報","頻道清理失敗時會以私密回覆告知目前結果。"]]}};$$(".feature-open").forEach(b=>b.addEventListener("click",e=>{const f=e.currentTarget.closest(".feature-card").dataset.feature,d=data[f];$("#featureModalTitle").textContent=d.title;$("#featureModalBody").innerHTML=d.items.map(i=>'<div class="feature-detail"><strong>'+escapeHtml(i[0])+'</strong><p>'+escapeHtml(i[1])+"</p></div>").join("");openModal($("#featureModal"))}))}function setupDemos(){const choose=$("#chooseDemoBtn");choose.onclick=()=>{const v=$$("#choiceInputs input").map(x=>x.value.trim()).filter(Boolean);if(!v.length){toast("至少輸入一個選項。","warning");return}const o=$("#chooseResult");o.textContent="結果："+v[Math.floor(Math.random()*v.length)];o.classList.remove("pop");requestAnimationFrame(()=>o.classList.add("pop"))};$("#confessDemoBtn").onclick=()=>{const s=$("#confessInput").value.trim();if(!s){toast("先寫一句內容。","warning");return}$("#confessResult p").textContent=s;toast("這是網站 Demo，內容沒有送到 Discord。","info")};let count=2;$("#lfgDemoBtn").onclick=e=>{if(count>=5){e.currentTarget.textContent="已滿團";return}count++;$("#lfgCount").textContent=count+" / 5";e.currentTarget.textContent=count>=5?"已滿團":"✅ 已加入";if(count<5)setTimeout(()=>e.currentTarget.textContent="✅ 算我一個",1200)}}
-function setupUptime(){const bars=$("#uptimeBars"),render=()=>{const range=$(".uptime-tab.active")?.dataset.range||"24h",n=range==="24h"?24:range==="7d"?28:range==="30d"?30:45;bars.innerHTML=Array.from({length:n},(_,i)=>'<span class="healthy" title="UI preview"></span>').join("");$("[data-uptime-note]").textContent=C.statusEndpoint?"歷史圖表會在心跳 API 提供事件資料後反映實況。":"目前未設定歷史心跳端點；此圖只代表 UI，不代表真實 uptime。"};$$(".uptime-tab").forEach(b=>b.onclick=()=>{$$(".uptime-tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");render()});render()}
-function setStat(n,v){$$('[data-stat="'+n+'"]').forEach(x=>x.textContent=v)}
-function setService(n,v){$$('[data-service-status="'+n+'"]').forEach(x=>x.textContent=v);$$('[data-service-dot="'+n+'"]').forEach(x=>{const s=/operational/i.test(v)?"operational":/unavailable|offline/i.test(v)?"offline":"neutral";x.className="status-dot "+s})}
-function setStatus(s,detail,last,latency){const label=s==="operational"?"All Systems Operational":s==="degraded"?"Partial Degradation":s==="offline"?"Bot Offline":"Status data unavailable";$$("[data-status-title]").forEach(x=>x.textContent=label);$$("[data-status-summary]").forEach(x=>x.textContent=s==="operational"?"ALL SYSTEMS OPERATIONAL":"STATUS MONITOR");$$("[data-live-label]").forEach(x=>x.textContent=s==="operational"?"系統正常運作":"狀態資料需要確認");$$("[data-status-detail]").forEach(x=>x.textContent=detail||"—");$$("[data-last-update]").forEach(x=>x.textContent=last||"—");$$("[data-status-big-dot]").forEach(x=>x.className="status-big-dot "+s);$$("[data-overall-dot]").forEach(x=>{x.className="status-dot "+(s==="operational"?"operational":s==="degraded"?"warning":s==="offline"?"offline":"neutral")});setService("bot",s==="operational"?"Operational":s==="offline"?"Offline":"Unavailable");if(Number.isFinite(Number(latency)))setStat("latency",Math.round(Number(latency)))}
-async function loadStatus(){if(!C.statusEndpoint){setStatus("unknown","尚未設定公開心跳端點。網站不會將未知狀態誤標為 Online。","Not connected",NaN);setService("api","Not connected");setService("database","Not connected");return}try{const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),6500),r=await fetch(C.statusEndpoint,{cache:"no-store",signal:ac.signal,headers:{Accept:"application/json"}});clearTimeout(tm);if(!r.ok)throw new Error("status "+r.status);const d=await r.json(),s=d.status==="online"||d.status==="operational"?"operational":d.status==="degraded"?"degraded":d.status==="offline"?"offline":"unknown";setStatus(s,d.message||"Live heartbeat connected.",d.updatedAt?new Date(d.updatedAt).toLocaleString("zh-TW"):"Just now",Number(d.latency));if(d.servers!=null)setStat("servers",Number(d.servers).toLocaleString());if(d.commands!=null)setStat("commands",Number(d.commands).toLocaleString());if(d.uptime!=null)setStat("uptime",d.uptime);if(d.version)$$("[data-version]").forEach(x=>x.textContent=d.version);setService("api",d.api===false?"Unavailable":"Operational");setService("database",d.database===false?"Unavailable":"Operational")}catch{setStatus("unknown","無法取得即時心跳資料。","Fetch failed",NaN);setService("api","Unavailable");setService("database","Unknown")}}
-function setupReveal(){const items=$$(".reveal");if(!("IntersectionObserver"in window)){items.forEach(x=>x.classList.add("show"));return}const o=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("show");o.unobserve(e.target)}}),{threshold:.12});items.forEach(x=>o.observe(x))}
-function init(){initConfig();setupNav();setupTheme();setupCommands();setupSearch();setupFeatures();setupDemos();setupUptime();setupReveal();$("#year").textContent=new Date().getFullYear();loadStatus();if(C.statusEndpoint)setInterval(loadStatus,30000)}
-document.addEventListener("DOMContentLoaded",init);
+(()=>{
+"use strict";
+const C=Object.assign({
+  brandName:"Discord Bot",
+  creator:"Your Name",
+  version:"v1.0.0",
+  inviteUrl:"",
+  supportUrl:"",
+  statusEndpoint:""
+},window.BOT_SITE_CONFIG||{});
+
+const COMMANDS=[
+  {name:"/spam",category:"Core",title:"多頻道訊息發送",desc:"選擇多個文字頻道並發送指定內容與次數。",params:"content / count",example:"/spam content:你好 count:10"},
+  {name:"/stopspam",category:"Control",title:"停止進行中的發送",desc:"停止自己目前的工作；具備權限者可停止指定使用者。",params:"target?",example:"/stopspam"},
+  {name:"/history",category:"History & Cleanup",title:"歷史訊息清理",desc:"搜尋指定頻道範圍的歷史訊息，並依成員或內容篩選。",params:"channels / member / content",example:"/history"}
+];
+
+const $=(selector,root=document)=>root.querySelector(selector);
+const $$=(selector,root=document)=>Array.from(root.querySelectorAll(selector));
+
+function toast(message,warning=false){
+  const el=document.createElement("div");
+  el.className="toast"+(warning?" warn":"");
+  el.textContent=message;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  setTimeout(()=>{
+    el.classList.remove("show");
+    setTimeout(()=>el.remove(),220);
+  },2600);
+}
+
+function setupLinks(){
+  $$(".invite-link").forEach(a=>{
+    if(C.inviteUrl){
+      a.href=C.inviteUrl;
+      a.target="_blank";
+      a.rel="noreferrer";
+    }else{
+      a.href="#";
+      a.addEventListener("click",e=>{
+        e.preventDefault();
+        toast("尚未設定 inviteUrl，請在 site-config.js 填入 Discord 邀請連結。",true);
+      });
+    }
+  });
+  $$(".support-link").forEach(a=>{
+    if(C.supportUrl){
+      a.href=C.supportUrl;
+      a.target="_blank";
+      a.rel="noreferrer";
+    }else{
+      a.href="#";
+      a.addEventListener("click",e=>{
+        e.preventDefault();
+        toast("尚未設定 supportUrl，請在 site-config.js 填入支援社群連結。",true);
+      });
+    }
+  });
+}
+
+function renderCommands(filter="all",query=""){
+  const root=$("#commands");
+  if(!root)return;
+  const q=query.trim().toLowerCase();
+  const data=COMMANDS.filter(c=>
+    (filter==="all"||c.category===filter)&&
+    (!q||[c.name,c.category,c.title,c.desc,c.params].join(" ").toLowerCase().includes(q))
+  );
+
+  if(!data.length){
+    root.innerHTML='<div class="demo-result">找不到符合條件的指令。</div>';
+    return;
+  }
+
+  root.innerHTML=data.map(c=>(
+    '<article class="command">'+
+      '<div>'+
+        '<div class="command-name"><code>'+c.name+'</code><span class="tag">'+c.category+'</span><span class="tag">'+c.params+'</span></div>'+
+        '<h3>'+c.title+'</h3>'+
+        '<p>'+c.desc+'</p>'+
+      '</div>'+
+      '<div class="command-side"><span class="example">'+c.example+'</span><button class="copy" type="button" data-copy="'+encodeURIComponent(c.example)+'">複製</button></div>'+
+    '</article>'
+  )).join("");
+
+  $$(".copy",root).forEach(button=>{
+    button.addEventListener("click",async()=>{
+      const value=decodeURIComponent(button.dataset.copy||"");
+      try{
+        await navigator.clipboard.writeText(value);
+        button.textContent="已複製";
+        toast("已複製指令範例。");
+        setTimeout(()=>button.textContent="複製",1200);
+      }catch{
+        toast(value);
+      }
+    });
+  });
+}
+
+function setupCommands(){
+  renderCommands();
+  $$(".filter").forEach(button=>{
+    button.addEventListener("click",()=>{
+      $$(".filter").forEach(x=>x.classList.remove("active"));
+      button.classList.add("active");
+      renderCommands(button.dataset.filter||"all",$("#commandSearch")?.value||"");
+    });
+  });
+  const search=$("#commandSearch");
+  if(search)search.addEventListener("input",()=>renderCommands($(".filter.active")?.dataset.filter||"all",search.value));
+  const clear=$("#clearSearch");
+  if(clear)clear.addEventListener("click",()=>{
+    if(search)search.value="";
+    renderCommands($(".filter.active")?.dataset.filter||"all","");
+  });
+}
+
+function setupTheme(){
+  const button=$("#themeBtn");
+  if(!button)return;
+  let theme=localStorage.getItem("bot-site-theme")||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark");
+  const apply=()=>{
+    document.documentElement.dataset.theme=theme;
+    button.textContent=theme==="light"?"☼":"◐";
+    localStorage.setItem("bot-site-theme",theme);
+  };
+  apply();
+  button.addEventListener("click",()=>{
+    theme=theme==="light"?"dark":"light";
+    apply();
+  });
+}
+
+function setupMobileMenu(){
+  const button=$("#menuBtn");
+  const nav=$(".nav-links");
+  if(!button||!nav)return;
+  button.addEventListener("click",()=>nav.classList.toggle("mobile-open"));
+  nav.querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>nav.classList.remove("mobile-open")));
+}
+
+function setupDemos(){
+  const choose=$("#chooseBtn");
+  if(choose)choose.addEventListener("click",()=>{
+    const values=$$(".choice").slice(0,3).map(x=>x.value.trim()).filter(Boolean);
+    if(!values.length){toast("至少輸入一個選項。",true);return;}
+    $("#chooseResult").textContent="結果： "+values[Math.floor(Math.random()*values.length)];
+  });
+
+  const anonButton=$("#anonBtn");
+  if(anonButton)anonButton.addEventListener("click",()=>{
+    const value=$("#anonInput")?.value.trim();
+    if(!value){toast("先輸入一段留言。",true);return;}
+    $("#anonResult").textContent="匿名玩家： "+value;
+  });
+}
+
+function updateService(serviceId,dotId,label,good=true){
+  const textEl=$(serviceId);
+  const dotEl=$(dotId);
+  if(textEl)textEl.textContent=label;
+  if(dotEl)dotEl.className="service-dot"+(good?" good":" bad");
+}
+
+async function loadStatus(){
+  const endpoint=C.statusEndpoint;
+  if(!endpoint){
+    $("#statusTitle").textContent="Status data unavailable";
+    $("#statusDetail").textContent="尚未設定公開心跳端點。";
+    $("#lastUpdate").textContent="Not connected";
+    $("#heroStatus").textContent="Unknown";
+    $("#heroState").textContent="PLATFORM READY";
+    return;
+  }
+
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),6500);
+    const response=await fetch(endpoint,{
+      cache:"no-store",
+      signal:controller.signal,
+      headers:{Accept:"application/json"}
+    });
+    clearTimeout(timer);
+    if(!response.ok)throw new Error("status "+response.status);
+
+    const data=await response.json();
+    const status=data.status==="online"||data.status==="operational"
+      ?"operational"
+      :data.status==="degraded"
+      ?"degraded"
+      :data.status==="offline"
+      ?"offline"
+      :"unknown";
+
+    const labels={
+      operational:"All Systems Operational",
+      degraded:"Partial Degradation",
+      offline:"Bot Offline",
+      unknown:"Status data unavailable"
+    };
+
+    $("#statusTitle").textContent=labels[status];
+    $("#statusDetail").textContent=data.message||"Live heartbeat connected.";
+    $("#lastUpdate").textContent=data.updatedAt?new Date(data.updatedAt).toLocaleString("zh-TW"):"Just now";
+    $("#heroStatus").textContent=status==="operational"?"Operational":status;
+    $("#heroState").textContent=status==="operational"?"LIVE PLATFORM":"PLATFORM CHECK";
+    $("#statusDot").className="status-big-dot "+status;
+    $("#statLatency").textContent=Number.isFinite(Number(data.latency))?Math.round(Number(data.latency))+" ms":"—";
+    $("#statServers").textContent=data.servers!=null?Number(data.servers).toLocaleString():"—";
+    $("#statUptime").textContent=data.uptime||"—";
+
+    updateService("#botService","#botDot",status==="operational"?"Operational":status==="offline"?"Offline":"Unavailable",status==="operational");
+    updateService("#apiService","#apiDot",data.api===false?"Unavailable":"Operational",data.api!==false);
+    updateService("#dbService","#dbDot",data.database===false?"Unavailable":"Operational",data.database!==false);
+  }catch{
+    $("#statusTitle").textContent="Status data unavailable";
+    $("#statusDetail").textContent="無法取得即時心跳資料。";
+    $("#lastUpdate").textContent="Fetch failed";
+    $("#heroStatus").textContent="Unavailable";
+    $("#heroState").textContent="STATUS UNAVAILABLE";
+    $("#statusDot").className="status-big-dot offline";
+    updateService("#botService","#botDot","Unavailable",false);
+    updateService("#apiService","#apiDot","Unavailable",false);
+    updateService("#dbService","#dbDot","Unknown",false);
+  }
+}
+
+function setup(){
+  document.title=C.brandName+" — Official";
+  const version=$("#versionText");
+  const year=$("#year");
+  if(version)version.textContent=C.version;
+  if(year)year.textContent=new Date().getFullYear();
+  setupLinks();
+  setupCommands();
+  setupTheme();
+  setupMobileMenu();
+  setupDemos();
+  loadStatus();
+  if(C.statusEndpoint)setInterval(loadStatus,30000);
+}
+
+document.addEventListener("DOMContentLoaded",setup);
 })();
