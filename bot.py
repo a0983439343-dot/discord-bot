@@ -8,7 +8,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import storage
-from cogs import utility, social, games, music, moderation, profile, voice, giveaway, media
+from cogs import utility, social, games, music, moderation, profile, voice, giveaway, media, settings
 
 
 OWNER_ID = int(os.getenv("OWNER_ID", "1140900506198351924"))
@@ -57,7 +57,7 @@ class Bot(commands.Bot):
     async def setup_hook(self):
         storage.init_db()
         modules = [
-            utility, social, games, music, moderation, profile, voice, giveaway, media
+            utility, social, games, music, moderation, profile, voice, giveaway, media, settings
         ]
         for module in modules:
             try:
