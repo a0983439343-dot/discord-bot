@@ -1,0 +1,131 @@
+import asyncio
+from datetime import timedelta
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+import storage
+
+
+def fmt_seconds(seconds: int) -> str:
+    seconds = max(0, int(seconds))
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, _ = divmod(seconds, 60)
+    if days:
+        return f"{days} 天 {hours} 小時"
+    if hours:
+        return f"{hours} 小時 {minutes} 分"
+    return f"{minutes} 分"
+
+
+class ProfileCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if not message.guild or message.author.bot:
+            return
+        result = storage.add_message_xp(message.guild.id, message.author.id)
+        if result["level"] > result["old_level"]:
+            try:
+                await message.channel.send(f"{message.author.mention} 升到 **Lv.{result['level']}** 了，恭喜啦。🎉")
+            except Exception:
+                pass
+
+    @app_commands.command(name="profile", description="看看自己的等級、聊天、語音和遊戲資料")
+    @app_commands.describe(member="不填就是看自己")
+    async def profile(self, interaction: discord.Interaction, member: discord.Member | None = None):
+        target = member or interaction.user
+        data = storage.get_profile(interaction.guild.id, target.id)
+        next_xp = data["level"] * 500
+        embed = discord.Embed(title=f"👤 {target.display_name}", color=0x5865F2)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.add_field(name="等級", value=f"Lv.{data['level']}", inline=True)
+        embed.add_field(name="XP", value=f"{data['xp']} / {next_xp}", inline=True)
+        embed.add_field(name="聊天", value=f"{data['msg_count']} 則", inline=True)
+        embed.add_field(name="語音", value=fmt_seconds(data["voice_seconds"]), inline=True)
+        embed.add_field(name="遊戲", value=f"{data['games_won']} 勝 / {data['games_played']} 場", inline=True)
+        embed.add_field(name="成就", value="先把成就系統玩起來就會慢慢解鎖。", inline=True)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="leaderboard", description="看看伺服器目前的各種排行榜")
+    @app_commands.describe(kind="排行類型")
+    @app_commands.choices(kind=[
+        app_commands.Choice(name="XP", value="xp"),
+        app_commands.Choice(name="聊天", value="msg_count"),
+        app_commands.Choice(name="語音", value="voice_seconds"),
+        app_commands.Choice(name="遊戲勝場", value="games_won"),
+        app_commands.Choice(name="遊戲場次", value="games_played"),
+    ])
+    async def leaderboard(self, interaction, kind: app_commands.Choice[str] | None = None):
+        field = kind.value if kind else "xp"
+        rows = storage.leaderboard(interaction.guild.id, field, 10)
+        if not rows:
+            await interaction.response.send_message("現在還沒什麼資料可以排。", ephemeral=True)
+            return
+        lines = []
+        for index, row in enumerate(rows, 1):
+            member = interaction.guild.get_member(row["user_id"])
+            name = member.display_name if member else f"User {row['user_id']}"
+            value = row[field]
+            if field == "voice_seconds":
+                value = fmt_seconds(value)
+            lines.append(f"**{index}.** {name} — {value}")
+        title = {"xp":"XP 排行", "msg_count":"聊天排行", "voice_seconds":"語音排行", "games_won":"遊戲勝場排行", "games_played":"遊戲場次排行"}[field]
+        await interaction.response.send_message("🏆 **" + title + "**\n" + "\n".join(lines))
+
+    @app_commands.command(name="userinfo", description="查看一位成員的基本 Discord 資訊")
+    async def userinfo(self, interaction, member: discord.Member | None = None):
+        target = member or interaction.user
+        embed = discord.Embed(title=f"👤 {target}", color=0x5865F2)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        embed.add_field(name="ID", value=str(target.id), inline=False)
+        embed.add_field(name="加入伺服器", value=discord.utils.format_dt(target.joined_at, "R") if target.joined_at else "不知道", inline=True)
+        roles = [r.mention for r in target.roles[1:]][-10:]
+        embed.add_field(name="身分組", value=" ".join(roles) if roles else "沒有額外身分組", inline=False)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="serverinfo", description="看看這個伺服器的基本資訊")
+    async def serverinfo(self, interaction):
+        guild = interaction.guild
+        embed = discord.Embed(title=f"🏠 {guild.name}", color=0x5865F2)
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        embed.add_field(name="成員", value=str(guild.member_count or len(guild.members)), inline=True)
+        embed.add_field(name="文字頻道", value=str(len(guild.text_channels)), inline=True)
+        embed.add_field(name="語音頻道", value=str(len(guild.voice_channels)), inline=True)
+        embed.add_field(name="身分組", value=str(len(guild.roles)), inline=True)
+        embed.add_field(name="建立時間", value=discord.utils.format_dt(guild.created_at, "D"), inline=True)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="avatar", description="查看自己或別人的大圖頭像")
+    async def avatar(self, interaction, member: discord.Member | None = None):
+        target = member or interaction.user
+        embed = discord.Embed(title=f"{target.display_name} 的頭像", color=0x5865F2)
+        embed.set_image(url=target.display_avatar.with_size(1024).url)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="banner", description="查看成員的 Discord Banner")
+    async def banner(self, interaction, member: discord.Member | None = None):
+        target = member or interaction.user
+        try:
+            user = await self.bot.fetch_user(target.id)
+            if not user.banner:
+                await interaction.response.send_message("這個人目前沒有公開的 Banner。", ephemeral=True)
+                return
+            embed = discord.Embed(title=f"{target.display_name} 的 Banner", color=0x5865F2)
+            embed.set_image(url=user.banner.with_size(1024).url)
+            await interaction.response.send_message(embed=embed)
+        except Exception:
+            await interaction.response.send_message("Banner 這次沒抓到，再試一次。", ephemeral=True)
+
+    @app_commands.command(name="membercount", description="看看伺服器現在有多少成員")
+    async def membercount(self, interaction):
+        await interaction.response.send_message(f"現在這個伺服器有 **{interaction.guild.member_count}** 位成員。")
+
+
+async def setup(bot):
+    await bot.add_cog(ProfileCog(bot))
