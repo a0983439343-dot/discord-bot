@@ -287,8 +287,8 @@ class MusicCog(commands.Cog):
         view = MusicSearchView(self, interaction, results)
         await interaction.followup.send("🎵 找到這些：\n" + "\n".join(lines) + "\n點下面選你要的。", view=view)
 
-    @music.command(name="play", description="直接搜尋並播放第一個結果")
-    @app_commands.describe(query="歌名、歌手、關鍵字或 YouTube 網址")
+    @music.command(name="play", description="搜尋歌曲，選一首後直接播放")
+    @app_commands.describe(query="歌名、歌手或關鍵字")
     async def play(self, interaction: discord.Interaction, query: str):
         if not interaction.guild:
             await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
@@ -299,11 +299,22 @@ class MusicCog(commands.Cog):
         except Exception:
             await interaction.followup.send("YouTube 這次搜尋失敗了，再試一次。")
             return
+
         if not results:
-            await interaction.followup.send("找不到這首。")
+            await interaction.followup.send("找不到這首，換個關鍵字看看。")
             return
-        ok, msg = await self.enqueue_song(interaction, results[0])
-        await interaction.followup.send(msg, ephemeral=not ok)
+
+        if len(results) == 1:
+            ok, msg = await self.enqueue_song(interaction, results[0])
+            await interaction.followup.send(msg, ephemeral=not ok)
+            return
+
+        lines = [f"{i+1}. **{song.title}**" for i, song in enumerate(results[:5])]
+        view = MusicSearchView(self, interaction, results[:5])
+        await interaction.followup.send(
+            "🎵 找到這些，點你要的：\n" + "\n".join(lines),
+            view=view,
+        )
 
     @music.command(name="queue", description="看看現在音樂佇列")
     async def queue(self, interaction: discord.Interaction):
