@@ -42,7 +42,7 @@
     <div class="hero-copy reveal">
       <div class="eyebrow"><span class="pulse"></span><span id="heroState">READY TO USE</span></div>
       <h1>讓你的 Discord<br><em>更順手。</em></h1>
-      <p class="hero-lead">把伺服器常用的訊息發送、工作控制與歷史清理，整理成簡單直覺的 Discord 指令。</p>
+      <p class="hero-lead">把朋友群每天會用到的工具、音樂、遊戲、自動回覆、身分組與管理功能，全部整理到一個 Bot 裡。</p>
       <div class="hero-actions">
         <a class="btn btn-primary btn-large invite-link" href="#">邀請 Bot <span>↗</span></a>
         <a class="btn btn-secondary btn-large" href="#commands">查看指令 <span>↓</span></a>
@@ -63,8 +63,8 @@
             <div class="live-chip"><span class="pulse"></span> BOT READY</div>
           </div>
           <div class="console-body">
-            <div class="fake-command"><span>›</span><b>/spam</b><span>選擇頻道</span><span>→</span><span>發送</span></div>
-            <div class="fake-command" style="margin-top:10px"><span>›</span><b>/history</b><span>搜尋</span><span>→</span><span>清理</span></div>
+            <div class="fake-command"><span>›</span><b>/music play</b><span>搜尋歌曲</span><span>→</span><span>播放</span></div>
+            <div class="fake-command" style="margin-top:10px"><span>›</span><b>/autoreply add</b><span>你說什麼</span><span>→</span><span>我回什麼</span></div>
             <div class="metrics">
               <div class="metric"><small>頻道</small><strong>多選</strong></div>
               <div class="metric"><small>權限</small><strong>檢查</strong></div>
@@ -83,7 +83,7 @@
   <div class="container">
     <div class="section-head reveal">
       <div><div class="eyebrow">FEATURES</div><h2>需要的功能，<br>放在一起。</h2></div>
-      <p>不堆無關功能。首頁只保留一般使用者真正需要知道的事情：能做什麼、怎麼用、需要什麼權限。</p>
+      <p>每個功能都有自己的說明，指令頁也能直接搜尋、分類與複製範例。</p>
     </div>
     <div class="card-grid" id="featureGrid"></div>
   </div>
@@ -98,9 +98,22 @@
     <div class="command-layout">
       <aside class="filter-stack reveal" aria-label="指令分類">
         <button class="filter active" type="button" data-filter="all">全部</button>
-        <button class="filter" type="button" data-filter="Core">發送</button>
-        <button class="filter" type="button" data-filter="Control">控制</button>
-        <button class="filter" type="button" data-filter="History & Cleanup">歷史清理</button>
+        <button class="filter" type="button" data-filter="核心">核心</button>
+        <button class="filter" type="button" data-filter="日常">日常</button>
+        <button class="filter" type="button" data-filter="群組">群組</button>
+        <button class="filter" type="button" data-filter="自動化">自動化</button>
+        <button class="filter" type="button" data-filter="身分組">身分組</button>
+        <button class="filter" type="button" data-filter="遊戲">遊戲</button>
+        <button class="filter" type="button" data-filter="成長">成長</button>
+        <button class="filter" type="button" data-filter="活動">活動</button>
+        <button class="filter" type="button" data-filter="音樂">音樂</button>
+        <button class="filter" type="button" data-filter="圖片">圖片</button>
+        <button class="filter" type="button" data-filter="搜尋">搜尋</button>
+        <button class="filter" type="button" data-filter="AI">AI</button>
+        <button class="filter" type="button" data-filter="語音">語音</button>
+        <button class="filter" type="button" data-filter="管理">管理</button>
+        <button class="filter" type="button" data-filter="安全">安全</button>
+        <button class="filter" type="button" data-filter="設定">設定</button>
       </aside>
       <div>
         <div class="command-tools reveal">
