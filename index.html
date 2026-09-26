@@ -3,144 +3,210 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#070a12">
-<meta name="description" content="Discord Bot 官方網站｜功能、指令、文件、狀態、更新與互動 Demo。">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Discord Bot — Official">
-<meta property="og:description" content="一個乾淨、可靠、現代化的 Discord Bot 官方網站。">
+<meta name="theme-color" content="#060811">
+<meta name="description" content="Discord Bot 官方網站｜功能、指令、使用方式、服務狀態與常見問題。">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./styles.css?v=20260927-final">
+<link rel="stylesheet" href="./styles.css?v=20260927-visual3">
+<script src="./site-config.js?v=20260927-visual3"></script>
+<script src="./commands.js?v=20260927-visual3"></script>
 <title>Discord Bot — Official</title>
-<style>
-:root{--bg:#070a12;--bg2:#0b0f1a;--panel:rgba(18,24,38,.72);--panel2:rgba(23,30,48,.6);--text:#f6f7fb;--muted:#9da7ba;--faint:#677288;--line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.16);--accent:#8fa9ff;--accent2:#b697ff;--good:#72e3ad;--warn:#ffcb75;--bad:#ff7e8b;--radius:24px;--ease:cubic-bezier(.2,.7,.2,1);--shadow:0 30px 90px rgba(0,0,0,.34)}
-:root[data-theme=light]{--bg:#f3f6fb;--bg2:#fff;--panel:rgba(255,255,255,.82);--panel2:rgba(248,250,255,.96);--text:#111827;--muted:#5f6b7a;--faint:#7f8ba0;--line:rgba(17,24,39,.08);--line2:rgba(17,24,39,.14);--shadow:0 25px 75px rgba(31,41,55,.11)}
-*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:88px}body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 10%,rgba(91,119,255,.13),transparent 32%),radial-gradient(circle at 88% 30%,rgba(186,107,255,.11),transparent 28%),linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);font:500 15px/1.7 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;letter-spacing:.01em}a{color:inherit;text-decoration:none}button,input{font:inherit}button{border:0;cursor:pointer;color:inherit;background:none}::selection{background:rgba(127,154,255,.3)}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.028;z-index:50;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='2' stitchTiles='stitch' type='fractalNoise'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-.container{width:min(1180px,calc(100% - 36px));margin:auto}.site-header{position:sticky;top:0;z-index:40;border-bottom:1px solid transparent;background:rgba(7,10,18,.58);backdrop-filter:blur(20px)}:root[data-theme=light] .site-header{background:rgba(243,246,251,.7)}.nav{height:78px;display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:12px;font-weight:800}.brand-mark{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#09101e;box-shadow:0 10px 35px rgba(132,149,255,.25)}.brand-copy strong{display:block;font-size:14px}.brand-copy small{display:block;font-size:9px;letter-spacing:.24em;color:var(--faint);margin-top:1px}.nav-links{display:flex;gap:24px;color:var(--muted);font-size:12px}.nav-links a:hover{color:var(--text)}.nav-actions{display:flex;align-items:center;gap:9px}.icon-btn{width:38px;height:38px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.025)}.icon-btn:hover{border-color:var(--line2);transform:translateY(-1px)}.menu{display:none}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--line2);border-radius:13px;padding:12px 17px;font-size:12px;font-weight:800;transition:.25s var(--ease)}.btn:hover{transform:translateY(-2px)}.btn-primary{border-color:transparent;background:linear-gradient(135deg,#f3f5ff,#b9c6ff);color:#101729;box-shadow:0 16px 38px rgba(134,150,255,.18)}.btn-secondary{background:rgba(255,255,255,.03)}.btn-large{padding:14px 19px}
-.hero{padding:96px 0 78px}.hero-grid{display:grid;grid-template-columns:1.04fr .96fr;gap:64px;align-items:center}.eyebrow{display:inline-flex;align-items:center;gap:9px;color:var(--faint);font-size:10px;letter-spacing:.22em;font-weight:900}.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 7px rgba(114,227,173,.08)}h1{font-size:clamp(52px,8vw,94px);line-height:.97;letter-spacing:-.07em;margin:18px 0 24px}h1 span{color:transparent;-webkit-text-stroke:1px rgba(229,235,255,.55)}.lead{max-width:650px;color:var(--muted);font-size:18px;line-height:1.8}.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px}.hero-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:22px;color:var(--faint);font-size:11px}.hero-meta b{color:var(--muted)}
-.hero-panel{position:relative;min-height:520px}.orbit{position:absolute;inset:32px 12px 12px;border:1px solid var(--line);border-radius:38px;background:linear-gradient(145deg,rgba(255,255,255,.05),rgba(255,255,255,.018));box-shadow:var(--shadow);overflow:hidden}.orbit:before{content:"";position:absolute;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(120,153,255,.18),transparent 65%);right:-90px;top:-120px}.grid-lines{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:54px 54px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.8),transparent)}.console{position:absolute;left:38px;right:38px;top:60px;border:1px solid var(--line2);border-radius:22px;background:rgba(7,10,18,.68);backdrop-filter:blur(16px);padding:18px;box-shadow:0 22px 70px rgba(0,0,0,.25)}:root[data-theme=light] .console{background:rgba(255,255,255,.8)}.console-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--line)}.window-dots{display:flex;gap:5px}.window-dots i{width:7px;height:7px;border-radius:50%;background:var(--line2)}.live-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(114,227,173,.18);color:var(--good);padding:5px 8px;border-radius:99px;font-size:9px;letter-spacing:.1em}.console-body{padding:20px 6px 7px}.cmd-line{display:flex;align-items:center;gap:9px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.cmd-line b{color:var(--accent)}.metric-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:17px}.metric{padding:14px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.025)}.metric small{display:block;color:var(--faint);font-size:9px;letter-spacing:.14em}.metric strong{display:block;margin-top:4px;font-size:18px}.floating{position:absolute;border:1px solid var(--line2);border-radius:18px;background:var(--panel);padding:14px 16px;box-shadow:0 18px 50px rgba(0,0,0,.18);backdrop-filter:blur(15px)}.floating.one{right:14px;bottom:80px}.floating.two{left:16px;bottom:30px}.floating small{display:block;color:var(--faint);font-size:9px;letter-spacing:.13em}.floating strong{display:block;margin-top:2px}
-.section{padding:92px 0}.section.alt{background:linear-gradient(180deg,transparent,rgba(255,255,255,.02),transparent)}.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:44px}.section-head h2{font-size:clamp(36px,5vw,62px);line-height:1.04;letter-spacing:-.055em;margin:8px 0 0}.section-head p{max-width:420px;color:var(--muted);margin:0}
-.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}.card{padding:25px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(150deg,rgba(255,255,255,.05),rgba(255,255,255,.018));transition:.25s var(--ease)}.card:hover{transform:translateY(-5px);border-color:var(--line2);box-shadow:0 22px 60px rgba(0,0,0,.12)}.icon{width:42px;height:42px;border-radius:13px;border:1px solid var(--line2);display:grid;place-items:center;margin-bottom:26px}.kicker{font-size:9px;color:var(--faint);letter-spacing:.2em;font-weight:900}.card h3{font-size:21px;letter-spacing:-.03em;margin:7px 0}.card p{margin:0;color:var(--muted);line-height:1.78}.mini-link{display:inline-flex;align-items:center;gap:8px;margin-top:17px;font-size:11px;font-weight:800;color:var(--accent)}.mini-link:hover{text-decoration:underline}
-.command-shell{display:grid;grid-template-columns:185px 1fr;gap:20px}.filters{position:sticky;top:100px;height:max-content;display:grid;gap:6px}.filter{padding:11px 12px;text-align:left;border:1px solid transparent;border-radius:12px;color:var(--muted);font-size:11px}.filter.active,.filter:hover{border-color:var(--line);background:rgba(255,255,255,.035);color:var(--text)}.command-tools{display:flex;gap:9px;margin-bottom:12px}.search{flex:1;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.03);padding:13px 14px;color:var(--text);outline:none}.search:focus{border-color:var(--line2);box-shadow:0 0 0 4px rgba(140,160,255,.06)}.commands{display:grid;gap:9px}.command{display:grid;grid-template-columns:1fr auto;gap:18px;padding:18px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.022)}.command:hover{border-color:var(--line2)}.command-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.command code{padding:6px 9px;border-radius:9px;background:rgba(134,157,255,.1);color:var(--accent);font-size:12px}.tag{padding:5px 8px;border:1px solid var(--line);border-radius:999px;color:var(--faint);font-size:9px}.command h3{margin:8px 0 3px;font-size:16px}.command p{margin:0;color:var(--muted);font-size:12px}.command-side{display:flex;align-items:center;gap:10px}.example{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--faint);font-size:10px}.copy{padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:10px}.copy:hover{border-color:var(--line2)}
-.split{display:grid;grid-template-columns:1fr 1fr;gap:14px}.doc{padding:28px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(160deg,rgba(255,255,255,.04),rgba(255,255,255,.018))}.doc h3{font-size:22px;margin:0 0 12px}.doc p{color:var(--muted);margin:0 0 18px}.codebox{border:1px solid var(--line);border-radius:16px;padding:16px;background:rgba(0,0,0,.12);font:12px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}.codebox b{color:var(--accent)}
-.status-card{padding:30px;border:1px solid var(--line2);border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:var(--shadow)}.status-main{display:flex;align-items:center;justify-content:space-between;gap:20px}.status-left{display:flex;align-items:center;gap:15px}.status-big-dot{width:13px;height:13px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 8px rgba(255,255,255,.04)}.status-big-dot.operational{background:var(--good);box-shadow:0 0 0 8px rgba(114,227,173,.08)}.status-big-dot.degraded{background:var(--warn)}.status-big-dot.offline{background:var(--bad)}.status-left small{display:block;color:var(--faint);font-size:9px;letter-spacing:.17em}.status-left strong{display:block;margin-top:3px;font-size:23px}.status-left span{display:block;color:var(--muted);font-size:11px}.status-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:22px}.status-meta .metric strong{font-size:15px}.status-services{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}.service{padding:15px;border:1px solid var(--line);border-radius:15px}.service-top{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800}.service-dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}.service-dot.good{background:var(--good)}.service-dot.bad{background:var(--bad)}.service span{display:block;color:var(--muted);font-size:10px;margin-top:5px}
-.timeline{display:grid;gap:9px}.update{display:grid;grid-template-columns:120px 1fr auto;gap:18px;align-items:center;padding:18px 20px;border:1px solid var(--line);border-radius:17px}.update time{color:var(--faint);font-size:10px}.update strong{font-size:12px}.update p{margin:3px 0 0;color:var(--muted);font-size:11px}.badge{padding:6px 8px;border:1px solid var(--line);border-radius:999px;color:var(--faint);font-size:9px}
-.demo-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}.demo{padding:25px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(150deg,rgba(255,255,255,.045),rgba(255,255,255,.02))}.demo h3{margin:0;font-size:22px}.demo p{color:var(--muted)}.choice-list{display:grid;gap:8px;margin-top:16px}.choice{border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.025);padding:11px 12px;color:var(--text);outline:none}.choice:focus{border-color:var(--line2)}.demo-result{margin-top:14px;min-height:50px;display:flex;align-items:center;padding:12px 14px;border-radius:13px;border:1px dashed var(--line2);color:var(--muted)}
-.faq{display:grid;gap:8px}.faq details{border:1px solid var(--line);border-radius:16px;padding:17px 18px;background:rgba(255,255,255,.02)}.faq summary{cursor:pointer;font-weight:800;font-size:12px}.faq p{color:var(--muted);margin:12px 0 0;font-size:11px}
-.cta{padding:40px;border:1px solid var(--line2);border-radius:28px;background:radial-gradient(circle at 90% 10%,rgba(142,161,255,.17),transparent 34%),linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.02));display:flex;align-items:center;justify-content:space-between;gap:25px}.cta h2{font-size:38px;letter-spacing:-.05em;margin:0 0 8px}.cta p{color:var(--muted);margin:0}
-footer{padding:34px 0 50px;border-top:1px solid var(--line);color:var(--faint);font-size:10px}.footer-row{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}.footer-links{display:flex;gap:16px}.footer-links a:hover{color:var(--text)}
-.toast{position:fixed;right:18px;bottom:18px;z-index:90;padding:12px 15px;border:1px solid var(--line2);border-radius:13px;background:rgba(12,17,28,.92);color:#fff;box-shadow:0 18px 50px rgba(0,0,0,.3);font-size:11px;transform:translateY(12px);opacity:0;transition:.2s}.toast.show{transform:none;opacity:1}.toast.warn{border-color:rgba(255,203,117,.24)}
-@media(max-width:980px){.nav-links{display:none}.menu{display:inline-grid}.hero-grid,.demo-grid,.split{grid-template-columns:1fr}.hero-panel{order:-1;min-height:430px}.cards{grid-template-columns:1fr 1fr}.command-shell{grid-template-columns:1fr}.filters{position:static;display:flex;overflow:auto}.filter{white-space:nowrap}.status-main{align-items:flex-start;flex-direction:column}.status-services{grid-template-columns:1fr 1fr}}
-@media(max-width:640px){.container{width:min(100% - 22px,1180px)}.nav{height:70px}.nav-actions .btn-primary{display:none}.hero{padding:64px 0 46px}.hero-panel{min-height:360px}.console{left:18px;right:18px;top:38px}.floating.one{right:4px;bottom:35px}.floating.two{left:4px;bottom:0}.section{padding:70px 0}.section-head{display:block;margin-bottom:28px}.section-head p{margin-top:14px}.cards{grid-template-columns:1fr}.command{grid-template-columns:1fr}.command-side{justify-content:space-between}.status-meta,.status-services{grid-template-columns:1fr}.update{grid-template-columns:1fr;gap:7px}.cta{padding:25px;display:block}.cta .hero-actions{margin-top:20px}h1{font-size:56px}.lead{font-size:16px}}
-</style>
 </head>
 <body>
+<noscript><div class="noscript">這個網站需要啟用 JavaScript 才能使用互動功能。</div></noscript>
+
 <header class="site-header">
   <div class="container nav">
-    <a href="#home" class="brand"><span class="brand-mark">B</span><span class="brand-copy"><strong>Discord Bot</strong><small>OFFICIAL</small></span></a>
-    <nav class="nav-links">
-      <a href="#features">功能</a><a href="#commands">指令</a><a href="#docs">文件</a><a href="#status">狀態</a><a href="#updates">更新</a><a href="#support">支援</a>
+    <a href="#home" class="brand" aria-label="回到首頁">
+      <span class="brand-mark">B</span>
+      <span class="brand-copy"><strong data-brand-name>Discord Bot</strong><small>OFFICIAL</small></span>
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="主要導覽">
+      <a href="#features">功能</a>
+      <a href="#commands">指令</a>
+      <a href="#guide">使用方式</a>
+      <a href="#status">服務狀態</a>
+      <a href="#faq">常見問題</a>
     </nav>
     <div class="nav-actions">
-      <button class="icon-btn" id="themeBtn" aria-label="切換主題">◐</button>
-      <button class="icon-btn menu" id="menuBtn" aria-label="開啟選單">☰</button>
-      <a class="btn btn-primary invite-link" href="#">邀請 Bot ↗</a>
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="切換深色與淺色模式">◐</button>
+      <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="開啟導覽選單" aria-expanded="false">☰</button>
+      <a class="btn btn-primary invite-link" href="#">邀請 Bot <span>↗</span></a>
     </div>
   </div>
 </header>
 
 <main>
-<section class="hero" id="home"><div class="container hero-grid">
-  <div>
-    <div class="eyebrow"><span class="dot"></span><span id="heroState">PLATFORM READY</span></div>
-    <h1>讓你的 Discord<br><span>更完整。</span></h1>
-    <p class="lead">把伺服器常用的廣播、控制與歷史清理工具，集中在一個乾淨、快速、好管理的 Bot 裡。</p>
-    <div class="hero-actions"><a class="btn btn-primary btn-large invite-link" href="#">邀請 Bot <span>↗</span></a><a class="btn btn-secondary btn-large" href="#features">探索功能 <span>→</span></a></div>
-    <div class="hero-meta"><span>Current build <b id="versionText">v1.0.0</b></span><span>Commands <b>3</b></span><span>Status <b id="heroStatus">Unknown</b></span></div>
-  </div>
-  <div class="hero-panel">
-    <div class="orbit"><div class="grid-lines"></div></div>
-    <div class="console">
-      <div class="console-top"><div class="window-dots"><i></i><i></i><i></i></div><div class="live-pill"><span class="dot"></span> LIVE MONITOR</div></div>
-      <div class="console-body">
-        <div class="cmd-line"><span>›</span><b>/spam</b><span>選擇頻道 → 發送 → 回報</span></div>
-        <div class="cmd-line" style="margin-top:9px"><span>›</span><b>/history</b><span>搜尋 → 篩選 → 清理</span></div>
-        <div class="metric-row"><div class="metric"><small>WORKFLOW</small><strong>ASYNC</strong></div><div class="metric"><small>PERMISSIONS</small><strong>CHECKED</strong></div><div class="metric"><small>RESPONSE</small><strong>PRIVATE</strong></div></div>
+<section class="hero" id="home">
+  <div class="container hero-grid">
+    <div class="hero-copy reveal">
+      <div class="eyebrow"><span class="pulse"></span><span id="heroState">READY TO USE</span></div>
+      <h1>讓你的 Discord<br><em>更順手。</em></h1>
+      <p class="hero-lead">把伺服器常用的訊息發送、工作控制與歷史清理，整理成簡單直覺的 Discord 指令。</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-large invite-link" href="#">邀請 Bot <span>↗</span></a>
+        <a class="btn btn-secondary btn-large" href="#commands">查看指令 <span>↓</span></a>
+      </div>
+      <div class="hero-note">
+        <span>✓ <strong>多頻道操作</strong></span>
+        <span>✓ <strong>權限檢查</strong></span>
+        <span>✓ <strong>可停止工作</strong></span>
       </div>
     </div>
-    <div class="floating one"><small>ACTIVE JOB</small><strong id="floatingJob">Ready</strong></div>
-    <div class="floating two"><small>SECURITY</small><strong>Permission first</strong></div>
-  </div>
-</div></section>
 
-<section class="section alt" id="features"><div class="container">
-  <div class="section-head"><div><div class="eyebrow">CAPABILITIES</div><h2>為日常管理<br>而設計。</h2></div><p>功能聚焦在實際會用到的管理流程，降低操作摩擦，同時保留權限與狀態回報。</p></div>
-  <div class="cards">
-    <article class="card"><div class="icon">↗</div><div class="kicker">CORE</div><h3>多頻道訊息發送</h3><p>一次選擇多個文字頻道，輸入內容與次數，交給 Bot 處理整個發送工作。</p><a class="mini-link" href="#commands">查看 /spam →</a></article>
-    <article class="card"><div class="icon">⌁</div><div class="kicker">CONTROL</div><h3>工作可停止</h3><p>每位使用者維持自己的進行中工作，必要時可使用停止指令結束任務。</p><a class="mini-link" href="#commands">查看 /stopspam →</a></article>
-    <article class="card"><div class="icon">⌕</div><div class="kicker">HISTORY</div><h3>搜尋與歷史清理</h3><p>可限定頻道範圍，再依成員或內容做篩選，執行前檢查管理訊息權限。</p><a class="mini-link" href="#commands">查看 /history →</a></article>
+    <div class="hero-visual reveal">
+      <div class="visual-frame">
+        <div class="visual-grid" id="visualGrid" aria-hidden="true"></div>
+        <div class="console">
+          <div class="console-top">
+            <div class="window-dots"><i></i><i></i><i></i></div>
+            <div class="live-chip"><span class="pulse"></span> BOT READY</div>
+          </div>
+          <div class="console-body">
+            <div class="fake-command"><span>›</span><b>/spam</b><span>選擇頻道</span><span>→</span><span>發送</span></div>
+            <div class="fake-command" style="margin-top:10px"><span>›</span><b>/history</b><span>搜尋</span><span>→</span><span>清理</span></div>
+            <div class="metrics">
+              <div class="metric"><small>頻道</small><strong>多選</strong></div>
+              <div class="metric"><small>權限</small><strong>檢查</strong></div>
+              <div class="metric"><small>回覆</small><strong>清楚</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="float-card float-a"><small>快速控制</small><strong>/stopspam</strong></div>
+        <div class="float-card float-b"><small>歷史工具</small><strong>/history</strong></div>
+      </div>
+    </div>
   </div>
-</div></section>
+</section>
 
-<section class="section" id="commands"><div class="container">
-  <div class="section-head"><div><div class="eyebrow">COMMANDS</div><h2>指令中心。</h2></div><p>目前 GitHub 專案實際提供的斜線指令如下。每個範例都可以直接複製。</p></div>
-  <div class="command-shell">
-    <aside class="filters"><button class="filter active" data-filter="all">全部指令</button><button class="filter" data-filter="Core">Core</button><button class="filter" data-filter="Control">Control</button><button class="filter" data-filter="History & Cleanup">History & Cleanup</button></aside>
-    <div><div class="command-tools"><input id="commandSearch" class="search" placeholder="搜尋指令、功能或關鍵字…"><button class="btn btn-secondary" id="clearSearch">清除</button></div><div class="commands" id="commands"></div></div>
+<section class="section" id="features">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow">FEATURES</div><h2>需要的功能，<br>放在一起。</h2></div>
+      <p>不堆無關功能。首頁只保留一般使用者真正需要知道的事情：能做什麼、怎麼用、需要什麼權限。</p>
+    </div>
+    <div class="card-grid">
+      <article class="surface interactive reveal">
+        <div class="icon-box">↗</div><div class="kicker">01 / MULTI CHANNEL</div>
+        <h3>一次操作多個頻道</h3>
+        <p>使用 <b>/spam</b> 選擇文字頻道，輸入內容與次數後開始工作，不用逐個頻道重複操作。</p>
+        <div class="permission-row"><span class="pill">查看頻道</span><span class="pill">發送訊息</span></div>
+      </article>
+      <article class="surface interactive reveal">
+        <div class="icon-box">Ⅱ</div><div class="kicker">02 / CONTROL</div>
+        <h3>工作可以停止</h3>
+        <p>目前正在執行發送工作時，可使用 <b>/stopspam</b> 立即停止自己的工作；有相應權限者可協助停止其他工作。</p>
+        <div class="permission-row"><span class="pill">可中止</span><span class="pill">工作狀態</span></div>
+      </article>
+      <article class="surface interactive reveal">
+        <div class="icon-box">⌕</div><div class="kicker">03 / HISTORY</div>
+        <h3>搜尋與歷史清理</h3>
+        <p><b>/history</b> 可限定頻道，再依成員或內容縮小範圍，適合快速找到需要處理的舊訊息。</p>
+        <div class="permission-row"><span class="pill">讀取歷史</span><span class="pill">管理訊息</span></div>
+      </article>
+    </div>
   </div>
-</div></section>
+</section>
 
-<section class="section alt" id="docs"><div class="container">
-  <div class="section-head"><div><div class="eyebrow">DOCUMENTATION</div><h2>快速開始。</h2></div><p>把 Bot 加進伺服器後，從權限、頻道到指令，照下面流程即可開始。</p></div>
-  <div class="split">
-    <article class="doc"><div class="kicker">01 / INVITE</div><h3>加入你的伺服器</h3><p>使用官方邀請按鈕進入 Discord 授權流程。尚未設定連結時，網站會明確提示，不會導向不存在的網址。</p><a class="btn btn-secondary invite-link" href="#">邀請 Bot ↗</a></article>
-    <article class="doc"><div class="kicker">02 / PERMISSIONS</div><h3>確認必要權限</h3><p>管理類指令會依照使用者與 Bot 的權限做檢查，頻道操作也會先驗證可用性。</p><div class="codebox"><b>Required flow</b><br>Member permission → channel permission → action → response</div></article>
+<section class="section alt" id="commands">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow">COMMANDS</div><h2>指令中心。</h2></div>
+      <p>直接搜尋你需要的指令。每個範例都能一鍵複製。</p>
+    </div>
+    <div class="command-layout">
+      <aside class="filter-stack reveal" aria-label="指令分類">
+        <button class="filter active" type="button" data-filter="all">全部</button>
+        <button class="filter" type="button" data-filter="Core">發送</button>
+        <button class="filter" type="button" data-filter="Control">控制</button>
+        <button class="filter" type="button" data-filter="History & Cleanup">歷史清理</button>
+      </aside>
+      <div>
+        <div class="command-tools reveal">
+          <input id="commandSearch" class="search" type="search" placeholder="搜尋指令或功能…" autocomplete="off">
+          <button class="btn btn-secondary" id="clearSearch" type="button">清除</button>
+        </div>
+        <div class="command-list" id="commandList"></div>
+      </div>
+    </div>
   </div>
-</div></section>
+</section>
 
-<section class="section" id="status"><div class="container">
-  <div class="section-head"><div><div class="eyebrow">SERVICE STATUS</div><h2>透明的狀態。</h2></div><p>沒有即時心跳 API 時，網站會維持 Unknown，而不是偽造 Online。</p></div>
-  <div class="status-card">
-    <div class="status-main"><div class="status-left"><span id="statusDot" class="status-big-dot"></span><div><small>OVERALL STATUS</small><strong id="statusTitle">Status data unavailable</strong><span id="statusDetail">尚未設定公開心跳端點。</span></div></div><span class="badge" id="lastUpdate">Not connected</span></div>
-    <div class="status-meta"><div class="metric"><small>LATENCY</small><strong id="statLatency">—</strong></div><div class="metric"><small>SERVERS</small><strong id="statServers">—</strong></div><div class="metric"><small>UPTIME</small><strong id="statUptime">—</strong></div></div>
-    <div class="status-services"><div class="service"><div class="service-top"><span class="service-dot" id="botDot"></span>Bot</div><span id="botService">Unknown</span></div><div class="service"><div class="service-top"><span class="service-dot" id="apiDot"></span>API</div><span id="apiService">Not connected</span></div><div class="service"><div class="service-top"><span class="service-dot" id="dbDot"></span>Database</div><span id="dbService">Not connected</span></div></div>
+<section class="section" id="guide">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow">HOW IT WORKS</div><h2>三步，<br>開始使用。</h2></div>
+      <p>不用學一套複雜介面。把 Bot 加進伺服器後，直接使用 Discord 的斜線指令。</p>
+    </div>
+    <div class="steps">
+      <article class="surface step interactive reveal"><div class="step-number">01</div><h3>邀請 Bot</h3><p>從官方邀請按鈕進入 Discord 授權流程，加入需要使用的伺服器。</p></article>
+      <article class="surface step interactive reveal"><div class="step-number">02</div><h3>確認權限</h3><p>讓 Bot 可以查看與發送訊息；需要歷史清理時，再確認管理訊息與讀取歷史權限。</p></article>
+      <article class="surface step interactive reveal"><div class="step-number">03</div><h3>輸入指令</h3><p>在 Discord 輸入 /，選擇指令與參數，就能開始對應的工作。</p></article>
+    </div>
   </div>
-</div></section>
+</section>
 
-<section class="section alt" id="updates"><div class="container">
-  <div class="section-head"><div><div class="eyebrow">CHANGELOG</div><h2>持續更新。</h2></div><p>官方網站同步展示 Bot 專案現階段的公開功能與版本資訊。</p></div>
-  <div class="timeline">
-    <article class="update"><time>2026-09-27</time><div><strong>Website refresh</strong><p>重整官方網站視覺、導覽、指令中心與狀態頁。</p></div><span class="badge">WEB</span></article>
-    <article class="update"><time>Current</time><div><strong>Command surface</strong><p>以目前 GitHub Bot 實際存在的 /spam、/stopspam、/history 為準。</p></div><span class="badge">BOT</span></article>
-    <article class="update"><time>Continuous</time><div><strong>Quality checks</strong><p>GitHub Actions 驗證網站資產與 JavaScript 語法後才進行 Pages 部署。</p></div><span class="badge">CI</span></article>
+<section class="section alt" id="status">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow">SERVICE STATUS</div><h2>服務狀態。</h2></div>
+      <p>這裡只顯示與使用者有關的服務狀態。沒有即時資料時，不會假裝顯示在線。</p>
+    </div>
+    <div class="status-panel interactive reveal">
+      <div class="status-top">
+        <div class="status-left"><span id="statusDot" class="status-dot-large"></span><div><small>目前狀態</small><strong id="statusTitle">尚未連線</strong><span id="statusDetail">目前沒有公開的即時狀態資料。</span></div></div>
+        <span id="lastUpdate" class="status-time">—</span>
+      </div>
+      <div class="status-reassurance">
+        <span>服務狀態透明</span><span>不顯示虛假的 Online</span><span id="heroStatus">Unknown</span>
+      </div>
+    </div>
   </div>
-</div></section>
+</section>
 
-<section class="section" id="interactive"><div class="container">
-  <div class="section-head"><div><div class="eyebrow">INTERACTIVE</div><h2>直接玩 Demo。</h2></div><p>這裡是純前端互動展示，不會把內容送到 Discord。</p></div>
-  <div class="demo-grid">
-    <article class="demo"><h3>快速選擇器</h3><p>輸入幾個選項，讓網站隨機幫你選一個。</p><div class="choice-list"><input class="choice" value="一起打遊戲"><input class="choice" value="看電影"><input class="choice" value="閒聊"></div><button class="btn btn-primary" id="chooseBtn" style="margin-top:13px">幫我選</button><div class="demo-result" id="chooseResult">等待你的選擇…</div></article>
-    <article class="demo"><h3>匿名留言預覽</h3><p>模擬匿名留言卡片的視覺效果。</p><input id="anonInput" class="choice" placeholder="寫一句話…"><button class="btn btn-secondary" id="anonBtn" style="margin-top:13px">展示留言</button><div class="demo-result" id="anonResult">尚未產生留言。</div></article>
+<section class="section" id="updates">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow">WHAT'S NEW</div><h2>最近更新。</h2></div>
+      <p>只放使用者會感受到的更新，不塞開發流程與內部技術紀錄。</p>
+    </div>
+    <div class="timeline">
+      <article class="surface update-card interactive reveal"><span class="update-date">2026 / 09 / 27</span><div><strong>官方網站全面整理</strong><p>重新設計首頁、指令中心、服務狀態與使用說明。</p></div><span class="badge">網站</span></article>
+      <article class="surface update-card interactive reveal"><span class="update-date">現在</span><div><strong>指令說明同步</strong><p>首頁以目前 Bot 實際可用的 /spam、/stopspam、/history 為準。</p></div><span class="badge">指令</span></article>
+    </div>
   </div>
-</div></section>
+</section>
 
-<section class="section alt"><div class="container">
-  <div class="section-head"><div><div class="eyebrow">FAQ</div><h2>常見問題。</h2></div><p>把最容易遇到的幾件事放在同一頁，減少來回找文件。</p></div>
-  <div class="faq">
-    <details><summary>網站有登入功能嗎？</summary><p>沒有。這個官方網站是公開介紹與文件網站，不要求使用者建立網站帳號。</p></details>
-    <details><summary>為什麼狀態不是 Online？</summary><p>因為目前尚未提供公開心跳 API。網站刻意顯示 Unknown，避免把靜態網站誤當成 Bot 真實在線狀態。</p></details>
-    <details><summary>目前有哪些 Bot 指令？</summary><p>/spam、/stopspam、/history。網站內容以 GitHub 目前主分支的 Bot 程式為準。</p></details>
+<section class="section alt" id="faq">
+  <div class="container">
+    <div class="section-head reveal">
+      <div><div class="eyebrow">FAQ</div><h2>常見問題。</h2></div>
+      <p>第一次使用時最常遇到的問題，都集中在這裡。</p>
+    </div>
+    <div class="faq reveal">
+      <details><summary>需要建立網站帳號嗎？</summary><p>不需要。這個網站沒有要求使用者註冊或登入。</p></details>
+      <details><summary>為什麼 /spam 需要權限？</summary><p>因為 Bot 必須在你選擇的頻道查看頻道內容並發送訊息；實際可用範圍也會受到 Discord 伺服器權限影響。</p></details>
+      <details><summary>使用 /history 需要什麼？</summary><p>執行歷史訊息清理時，需要相應的讀取歷史與管理訊息權限。</p></details>
+      <details><summary>可以停止正在執行的發送嗎？</summary><p>可以。使用 /stopspam 可以停止自己的進行中工作；具備相應權限時，也可以協助停止其他工作。</p></details>
+    </div>
   </div>
-</div></section>
+</section>
 
-<section class="section" id="support"><div class="container"><div class="cta"><div><div class="eyebrow">READY TO SHIP</div><h2>把你的伺服器<br>變得更好管理。</h2><p>填入邀請與支援連結後，這個網站就能直接作為公開官方首頁使用。</p></div><div class="hero-actions"><a class="btn btn-primary btn-large invite-link" href="#">邀請 Bot ↗</a><a class="btn btn-secondary btn-large support-link" href="#">支援社群 →</a></div></div></div></section>
+<section class="section" id="support">
+  <div class="container">
+    <div class="cta reveal">
+      <div><div class="eyebrow">READY WHEN YOU ARE</div><h2>現在就把 Bot<br>加進伺服器。</h2><p>從邀請開始，接著直接在 Discord 使用斜線指令。</p></div>
+      <div class="hero-actions"><a class="btn btn-primary btn-large invite-link" href="#">邀請 Bot <span>↗</span></a><a class="btn btn-secondary btn-large support-link" href="#">取得支援 <span>→</span></a></div>
+    </div>
+  </div>
+</section>
 </main>
 
-<footer><div class="container footer-row"><div>© <span id="year"></span> Discord Bot · Official</div><div class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a><a href="https://github.com/a0983439343-dot/discord-bot">GitHub ↗</a></div></div></footer>
-
-<script src="./site-config.js?v=20260927-final"></script>
-<script src="./commands.js?v=20260927-final"></script>
-<script src="./app.js?v=20260927-final2"></script>
+<footer>
+  <div class="container footer-row">
+    <div>© <span id="year"></span> <span data-brand-name>Discord Bot</span></div>
+    <div class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a></div>
+  </div>
+</footer>
+<script src="./app.js?v=20260927-final4"></script>
 </body>
 </html>
