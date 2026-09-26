@@ -1,0 +1,282 @@
+import asyncio
+import re
+import time
+from collections import defaultdict, deque
+from datetime import timedelta
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+import storage
+
+INVITE_RE = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.gg/|discord(?:app)?\.com/invite/)[A-Za-z0-9-]+", re.I)
+
+
+class ModerationCog(commands.Cog):
+    security = app_commands.Group(name="security", description="防刷、防大量標記與連結濫用")
+    modlog = app_commands.Group(name="modlog", description="設定管理紀錄要發去哪裡")
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.message_times = defaultdict(deque)
+
+    def can_manage(self, interaction: discord.Interaction) -> bool:
+        return bool(
+            interaction.guild and isinstance(interaction.user, discord.Member)
+            and (interaction.user.guild_permissions.administrator or interaction.user.guild_permissions.manage_guild)
+        )
+
+    def can_mod(self, interaction: discord.Interaction) -> bool:
+        return bool(
+            interaction.guild and isinstance(interaction.user, discord.Member)
+            and (interaction.user.guild_permissions.administrator or interaction.user.guild_permissions.moderate_members)
+        )
+
+    async def log_event(self, guild: discord.Guild, title: str, description: str):
+        channel_id = storage.get_setting(guild.id, "log_channel_id")
+        if not channel_id:
+            return
+        channel = guild.get_channel(int(channel_id))
+        if not channel:
+            return
+        try:
+            embed = discord.Embed(title=title, description=description[:4000], color=0xED4245, timestamp=discord.utils.utcnow())
+            await channel.send(embed=embed)
+        except Exception:
+            pass
+
+    async def punish_message(self, message: discord.Message, reason: str):
+        try:
+            await message.delete()
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            return False
+        await self.log_event(
+            message.guild,
+            "🛑 我攔了一則訊息",
+            f"**使用者**：{message.author.mention}\n**頻道**：{message.channel.mention}\n**原因**：{reason}",
+        )
+        return True
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if not message.guild or message.author.bot:
+            return
+        if not isinstance(message.author, discord.Member):
+            return
+        if message.author.guild_permissions.administrator or message.author.guild_permissions.manage_messages:
+            return
+
+        limit = int(storage.get_setting(message.guild.id, "mention_limit", 5))
+        mention_count = len(message.raw_mentions) + (limit if message.mention_everyone else 0)
+        if limit > 0 and mention_count >= limit:
+            await self.punish_message(message, f"一次標記了 {mention_count} 個人／全體，超過設定上限 {limit}")
+            return
+
+        if bool(storage.get_setting(message.guild.id, "block_invites", False)) and INVITE_RE.search(message.content):
+            if await self.punish_message(message, "邀請連結防護"):
+                return
+
+        if bool(storage.get_setting(message.guild.id, "block_caps", False)):
+            letters = [c for c in message.content if c.isalpha()]
+            if len(letters) >= 20 and sum(c.isupper() for c in letters) / len(letters) >= 0.85:
+                if await self.punish_message(message, "大量大寫字母"):
+                    return
+
+        flood_limit = int(storage.get_setting(message.guild.id, "flood_limit", 0))
+        if flood_limit > 0:
+            now = time.monotonic()
+            q = self.message_times[(message.guild.id, message.author.id)]
+            q.append(now)
+            while q and now - q[0] > 6:
+                q.popleft()
+            if len(q) >= flood_limit:
+                await self.punish_message(message, f"短時間連續發送 {len(q)} 則")
+                q.clear()
+
+    @security.command(name="mention-limit", description="設定一則訊息最多能標記幾個人")
+    @app_commands.describe(limit="例如 5；填 0 可關閉")
+    async def mention_limit(self, interaction, limit: app_commands.Range[int, 0, 25]):
+        if not self.can_manage(interaction):
+            await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
+            return
+        storage.set_setting(interaction.guild.id, "mention_limit", limit)
+        await interaction.response.send_message(f"好了，一則訊息最多 {limit} 個 Mention。0 就是不限制。", ephemeral=True)
+
+    @security.command(name="antispam", description="開關短時間訊息刷屏防護")
+    @app_commands.describe(enabled="是否開啟", limit="幾則訊息算刷屏")
+    async def antispam(self, interaction, enabled: bool, limit: app_commands.Range[int, 3, 30] = 8):
+        if not self.can_manage(interaction):
+            await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
+            return
+        storage.set_setting(interaction.guild.id, "flood_limit", limit if enabled else 0)
+        await interaction.response.send_message(
+            f"防刷已{'開啟' if enabled else '關閉'}。{('6 秒內 ' + str(limit) + ' 則會開始攔。') if enabled else ''}",
+            ephemeral=True,
+        )
+
+    @security.command(name="invites", description="開關 Discord 邀請連結防護")
+    async def invites(self, interaction, enabled: bool):
+        if not self.can_manage(interaction):
+            await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
+            return
+        storage.set_setting(interaction.guild.id, "block_invites", enabled)
+        await interaction.response.send_message(f"邀請連結防護已{'開啟' if enabled else '關閉'}。", ephemeral=True)
+
+    @security.command(name="caps", description="開關大量大寫字母防護")
+    async def caps(self, interaction, enabled: bool):
+        if not self.can_manage(interaction):
+            await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
+            return
+        storage.set_setting(interaction.guild.id, "block_caps", enabled)
+        await interaction.response.send_message(f"大寫刷屏防護已{'開啟' if enabled else '關閉'}。", ephemeral=True)
+
+    @modlog.command(name="set", description="把管理紀錄送到指定頻道")
+    @app_commands.describe(channel="紀錄頻道")
+    async def modlog_set(self, interaction, channel: discord.TextChannel):
+        if not self.can_manage(interaction):
+            await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
+            return
+        storage.set_setting(interaction.guild.id, "log_channel_id", channel.id)
+        await interaction.response.send_message(f"好，以後管理紀錄會丟到 {channel.mention}。", ephemeral=True)
+
+    @modlog.command(name="disable", description="關閉管理紀錄")
+    async def modlog_disable(self, interaction):
+        if not self.can_manage(interaction):
+            await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
+            return
+        storage.set_setting(interaction.guild.id, "log_channel_id", None)
+        await interaction.response.send_message("管理紀錄關掉了。", ephemeral=True)
+
+    @app_commands.command(name="clear", description="清掉目前頻道最近的一批訊息")
+    @app_commands.describe(amount="1 到 100")
+    async def clear(self, interaction, amount: app_commands.Range[int, 1, 100]):
+        if not isinstance(interaction.channel, discord.TextChannel) or not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("你需要管理訊息權限。", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        try:
+            deleted = await interaction.channel.purge(limit=amount)
+            await interaction.followup.send(f"清掉 {len(deleted)} 則。", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send("Discord 不讓我刪，檢查 Bot 的管理訊息權限。", ephemeral=True)
+
+    @app_commands.command(name="slowmode", description="設定目前頻道慢速模式")
+    @app_commands.describe(seconds="0 代表關閉，最多 21600 秒")
+    async def slowmode(self, interaction, seconds: app_commands.Range[int, 0, 21600]):
+        if not isinstance(interaction.channel, discord.TextChannel) or not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("你需要管理頻道權限。", ephemeral=True)
+            return
+        try:
+            await interaction.channel.edit(slowmode_delay=seconds, reason=f"設定慢速模式 by {interaction.user}")
+            await interaction.response.send_message(f"慢速模式設成 {seconds} 秒。" if seconds else "慢速模式關掉了。")
+        except discord.Forbidden:
+            await interaction.response.send_message("我沒權限改這個頻道。", ephemeral=True)
+
+    @app_commands.command(name="lock", description="暫時鎖住目前頻道，不讓一般成員發言")
+    async def lock(self, interaction):
+        if not isinstance(interaction.channel, discord.TextChannel) or not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("你需要管理頻道權限。", ephemeral=True)
+            return
+        overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
+        overwrite.send_messages = False
+        try:
+            await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite, reason=f"鎖頻道 by {interaction.user}")
+            await interaction.response.send_message("先鎖起來了。🔒")
+        except discord.Forbidden:
+            await interaction.response.send_message("我沒辦法改這個頻道權限。", ephemeral=True)
+
+    @app_commands.command(name="unlock", description="解除目前頻道的鎖定")
+    async def unlock(self, interaction):
+        if not isinstance(interaction.channel, discord.TextChannel) or not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_channels:
+            await interaction.response.send_message("你需要管理頻道權限。", ephemeral=True)
+            return
+        overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
+        overwrite.send_messages = None
+        try:
+            await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite, reason=f"解鎖頻道 by {interaction.user}")
+            await interaction.response.send_message("好了，解鎖。🔓")
+        except discord.Forbidden:
+            await interaction.response.send_message("我沒辦法改這個頻道權限。", ephemeral=True)
+
+    @app_commands.command(name="warn", description="給成員一個警告並留下紀錄")
+    @app_commands.describe(member="要警告的人", reason="原因")
+    async def warn(self, interaction, member: discord.Member, reason: str):
+        if not self.can_mod(interaction):
+            await interaction.response.send_message("你需要管理成員權限。", ephemeral=True)
+            return
+        wid = storage.add_warning(interaction.guild.id, member.id, interaction.user.id, reason)
+        await self.log_event(interaction.guild, "⚠️ 成員警告", f"{member.mention} 被 {interaction.user.mention} 警告。\\n原因：{reason}")
+        await interaction.response.send_message(f"記下來了。{member.mention} 這次是警告，編號 {wid}。")
+
+    @app_commands.command(name="warnings", description="查看某位成員的警告紀錄")
+    @app_commands.describe(member="要查看的人")
+    async def warnings(self, interaction, member: discord.Member):
+        if not self.can_mod(interaction):
+            await interaction.response.send_message("你需要管理成員權限。", ephemeral=True)
+            return
+        rows = storage.get_warnings(interaction.guild.id, member.id)
+        if not rows:
+            await interaction.response.send_message(f"{member.display_name} 目前沒有警告紀錄。", ephemeral=True)
+            return
+        lines = [f"{i+1}. {row['reason']}" for i, row in enumerate(rows[:20])]
+        await interaction.response.send_message(f"{member.mention} 的警告：\\n" + "\\n".join(lines), ephemeral=True)
+
+    @app_commands.command(name="timeout", description="暫時讓成員不能聊天")
+    @app_commands.describe(member="要處理的人", minutes="分鐘", reason="原因")
+    async def timeout(self, interaction, member: discord.Member, minutes: app_commands.Range[int, 1, 40320], reason: str = "沒有寫原因"):
+        if not self.can_mod(interaction):
+            await interaction.response.send_message("你需要管理成員權限。", ephemeral=True)
+            return
+        if member.top_role >= interaction.guild.me.top_role:
+            await interaction.response.send_message("這個成員的身分組比我高，我不能處理。", ephemeral=True)
+            return
+        try:
+            await member.timeout(discord.utils.utcnow() + timedelta(minutes=minutes), reason=reason)
+            await self.log_event(interaction.guild, "⏱️ 成員 Timeout", f"{member.mention} 被 {interaction.user.mention} Timeout {minutes} 分鐘。\\n原因：{reason}")
+            await interaction.response.send_message(f"好，{member.mention} 暫停聊天 {minutes} 分鐘。")
+        except discord.Forbidden:
+            await interaction.response.send_message("Discord 不讓我 Timeout 這個人。", ephemeral=True)
+
+    @app_commands.command(name="kick", description="把成員踢出伺服器")
+    async def kick(self, interaction, member: discord.Member, reason: str = "沒有寫原因"):
+        if not self.can_mod(interaction):
+            await interaction.response.send_message("你需要管理成員權限。", ephemeral=True)
+            return
+        try:
+            await member.kick(reason=reason)
+            await self.log_event(interaction.guild, "👢 成員被踢出", f"{member} 被 {interaction.user.mention} 踢出。\\n原因：{reason}")
+            await interaction.response.send_message(f"處理好了，{member.display_name} 已離開伺服器。")
+        except discord.Forbidden:
+            await interaction.response.send_message("我沒有權限踢這個人。", ephemeral=True)
+
+    @app_commands.command(name="ban", description="把成員封鎖並踢出伺服器")
+    async def ban(self, interaction, member: discord.Member, reason: str = "沒有寫原因"):
+        if not self.can_mod(interaction):
+            await interaction.response.send_message("你需要管理成員權限。", ephemeral=True)
+            return
+        try:
+            await member.ban(reason=reason)
+            await self.log_event(interaction.guild, "🔨 成員被封鎖", f"{member} 被 {interaction.user.mention} 封鎖。\\n原因：{reason}")
+            await interaction.response.send_message(f"好了，{member.display_name} 已被封鎖。")
+        except discord.Forbidden:
+            await interaction.response.send_message("我沒有權限封鎖這個人。", ephemeral=True)
+
+    @app_commands.command(name="unban", description="用使用者 ID 解除封鎖")
+    @app_commands.describe(user_id="Discord 使用者 ID")
+    async def unban(self, interaction, user_id: str):
+        if not self.can_mod(interaction):
+            await interaction.response.send_message("你需要管理成員權限。", ephemeral=True)
+            return
+        try:
+            user = await self.bot.fetch_user(int(user_id))
+            await interaction.guild.unban(user, reason=f"解除封鎖 by {interaction.user}")
+            await interaction.response.send_message(f"好了，{user} 解鎖。")
+        except (ValueError, discord.NotFound):
+            await interaction.response.send_message("這個 ID 找不到，或他本來就沒被封。", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("我沒有解除封鎖的權限。", ephemeral=True)
+
+
+async def setup(bot):
+    await bot.add_cog(ModerationCog(bot))
