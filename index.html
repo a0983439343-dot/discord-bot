@@ -140,57 +140,6 @@ footer{padding:34px 0 50px;border-top:1px solid var(--line);color:var(--faint);f
 <footer><div class="container footer-row"><div>© <span id="year"></span> Discord Bot · Official</div><div class="footer-links"><a href="./privacy.html">Privacy</a><a href="./terms.html">Terms</a><a href="https://github.com/a0983439343-dot/discord-bot">GitHub ↗</a></div></div></footer>
 
 <script src="./app.js?v=20260927-final"></script>
-<script>
-(()=>{
-"use strict";
-const C=Object.assign({brandName:"Discord Bot",creator:"Your Name",version:"v1.0.0",inviteUrl:"",supportUrl:"",githubUrl:"https://github.com/a0983439343-dot/discord-bot",statusEndpoint:""},window.BOT_SITE_CONFIG||{});
-const cmds=[
-{name:"/spam",category:"Core",title:"多頻道訊息發送",desc:"選擇多個文字頻道並發送指定內容與次數。",params:"content / count",example:"/spam content:你好 count:10"},
-{name:"/stopspam",category:"Control",title:"停止進行中的發送",desc:"停止自己目前的工作；具備權限者可停止指定使用者。",params:"target?",example:"/stopspam"},
-{name:"/history",category:"History & Cleanup",title:"歷史訊息清理",desc:"搜尋指定頻道範圍的歷史訊息，並依成員或內容篩選。",params:"channels / member / content",example:"/history"}
-];
-const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>Array.from(r.querySelectorAll(s));
-const toast=(m,w=false)=>{let x=document.createElement("div");x.className="toast"+(w?" warn":"");x.textContent=m;document.body.appendChild(x);requestAnimationFrame(()=>x.classList.add("show"));setTimeout(()=>{x.classList.remove("show");setTimeout(()=>x.remove(),200)},2500)};
-const setLink=(selector,url,msg)=>$$.call(null,selector).forEach(()=>{});
-function wireLinks(){
-  $$(".invite-link").forEach(a=>{if(C.inviteUrl){a.href=C.inviteUrl;a.target="_blank";a.rel="noreferrer"}else{a.href="#";a.onclick=e=>{e.preventDefault();toast("尚未設定 inviteUrl，請在 site-config.js 填入 Discord 邀請連結。",true)}}});
-  $$(".support-link").forEach(a=>{if(C.supportUrl){a.href=C.supportUrl;a.target="_blank";a.rel="noreferrer"}else{a.href="#";a.onclick=e=>{e.preventDefault();toast("尚未設定 supportUrl，請在 site-config.js 填入支援社群連結。",true)}}});
-}
-function render(filter="all",query=""){
-  const root=$("#commands"),q=query.trim().toLowerCase();
-  const data=cmds.filter(c=>(filter==="all"||c.category===filter)&&(!q||[c.name,c.category,c.title,c.desc,c.params].join(" ").toLowerCase().includes(q)));
-  root.innerHTML=data.length?data.map(c=>'<article class="command"><div><div class="command-name"><code>'+c.name+'</code><span class="tag">'+c.category+'</span><span class="tag">'+c.params+'</span></div><h3>'+c.title+'</h3><p>'+c.desc+'</p></div><div class="command-side"><span class="example">'+c.example+'</span><button class="copy" data-copy="'+encodeURIComponent(c.example)+'">複製</button></div></article>').join(""):'<div class="demo-result">找不到符合條件的指令。</div>';
-  $$(".copy").forEach(b=>b.onclick=async()=>{const t=decodeURIComponent(b.dataset.copy);try{await navigator.clipboard.writeText(t);b.textContent="已複製";toast("已複製指令範例。")}catch{toast(t)}});
-}
-function setup(){
-  document.title=C.brandName+" — Official";
-  $("#versionText").textContent=C.version; $("#year").textContent=new Date().getFullYear(); wireLinks(); render();
-  $$(".filter").forEach(b=>b.onclick=()=>{$$(".filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");render(b.dataset.filter,$("#commandSearch").value)});
-  $("#commandSearch").oninput=e=>render($(".filter.active").dataset.filter,e.target.value);
-  $("#clearSearch").onclick=()=>{$("#commandSearch").value="";render($(".filter.active").dataset.filter,"")};
-  $("#themeBtn").onclick=()=>{const next=document.documentElement.dataset.theme==="light"?"dark":"light";document.documentElement.dataset.theme=next;localStorage.setItem("bot-site-theme",next);$("#themeBtn").textContent=next==="light"?"☼":"◐"};
-  if(localStorage.getItem("bot-site-theme")==="light"){document.documentElement.dataset.theme="light";$("#themeBtn").textContent="☼"}
-  $("#chooseBtn").onclick=()=>{const v=$$(".choice").slice(0,3).map(x=>x.value.trim()).filter(Boolean);if(!v.length)return;$("#chooseResult").textContent="結果： "+v[Math.floor(Math.random()*v.length)]};
-  $("#anonBtn").onclick=()=>{const v=$("#anonInput").value.trim();if(!v){toast("先輸入一段留言。",true);return}$("#anonResult").textContent="匿名玩家： "+v};
-  const endpoint=C.statusEndpoint;
-  const service=(id,text,good)=>{const s=$(id),d=$(id.replace("Service","Dot"));if(s)s.textContent=text;if(d)d.className="service-dot "+(good?"good":"")};
-  async function status(){
-    if(!endpoint){$("#statusTitle").textContent="Status data unavailable";$("#statusDetail").textContent="尚未設定公開心跳端點。";$("#lastUpdate").textContent="Not connected";$("#heroStatus").textContent="Unknown";return}
-    try{
-      const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),6500);
-      const r=await fetch(endpoint,{cache:"no-store",signal:ac.signal,headers:{Accept:"application/json"}});
-      clearTimeout(timer);if(!r.ok)throw new Error();
-      const d=await r.json(),s=d.status==="online"||d.status==="operational"?"operational":d.status==="degraded"?"degraded":d.status==="offline"?"offline":"unknown";
-      const labels={operational:"All Systems Operational",degraded:"Partial Degradation",offline:"Bot Offline",unknown:"Status data unavailable"};
-      $("#statusTitle").textContent=labels[s];$("#statusDetail").textContent=d.message||"Live heartbeat connected.";$("#lastUpdate").textContent=d.updatedAt?new Date(d.updatedAt).toLocaleString("zh-TW"):"Just now";$("#statusDot").className="status-big-dot "+s;$("#heroStatus").textContent=s==="operational"?"Operational":s;
-      $("#statLatency").textContent=Number.isFinite(Number(d.latency))?Math.round(Number(d.latency))+" ms":"—";$("#statServers").textContent=d.servers!=null?Number(d.servers).toLocaleString():"—";$("#statUptime").textContent=d.uptime||"—";
-      service("#botService",s==="operational"?"Operational":s==="offline"?"Offline":"Unavailable",s==="operational");service("#apiService",d.api===false?"Unavailable":"Operational",d.api!==false);service("#dbService",d.database===false?"Unavailable":"Operational",d.database!==false);
-    }catch{$("#statusTitle").textContent="Status data unavailable";$("#statusDetail").textContent="無法取得即時心跳資料。";$("#lastUpdate").textContent="Fetch failed";$("#heroStatus").textContent="Unavailable";$("#statusDot").className="status-big-dot offline";service("#botService","Unavailable",false);service("#apiService","Unavailable",false);service("#dbService","Unknown",false)}
-  }
-  status(); if(endpoint)setInterval(status,30000);
-}
-document.addEventListener("DOMContentLoaded",setup);
-})();
-</script>
+<script src="./app.js?v=20260927-final2"></script>
 </body>
 </html>
