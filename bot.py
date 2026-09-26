@@ -75,37 +75,38 @@ class Bot(commands.Bot):
             except Exception as exc:
                 print(f"Slash command sync failed for {guild_id}: {exc}")
 
-        # 重新掛回已經存在的互動面板，重啟 Bot 後按鈕也能繼續用。
-        for row in storage.get_role_panels():
-            guild = self.get_guild(row["guild_id"])
-            if guild and row["message_id"]:
-                try:
-                    self.add_view(social.RolePanelView.for_guild(row, guild))
-                except Exception as exc:
-                    print("Role panel restore failed:", exc)
-
-        for row in storage.list_active_polls():
-            if row["message_id"]:
-                try:
-                    self.add_view(
-                        social.PollView(
-                            row["id"],
-                            __import__("json").loads(row["options"]),
-                            bool(row["multiple"]),
-                        )
-                    )
-                except Exception as exc:
-                    print("Poll restore failed:", exc)
-
-        for row in storage.list_active_giveaways():
-            if row["message_id"]:
-                try:
-                    self.add_view(giveaway.GiveawayView(row["id"]))
-                except Exception as exc:
-                    print("Giveaway restore failed:", exc)
-
     async def on_ready(self):
         print(f"Logged in as {self.user} ({self.user.id})")
+        if not getattr(self, "_persistent_views_loaded", False):
+            self._persistent_views_loaded = True
+            for row in storage.get_role_panels():
+                guild = self.get_guild(row["guild_id"])
+                if guild and row["message_id"]:
+                    try:
+                        self.add_view(social.RolePanelView.for_guild(row, guild))
+                    except Exception as exc:
+                        print("Role panel restore failed:", exc)
+
+            for row in storage.list_active_polls():
+                if row["message_id"]:
+                    try:
+                        self.add_view(
+                            social.PollView(
+                                row["id"],
+                                __import__("json").loads(row["options"]),
+                                bool(row["multiple"]),
+                            )
+                        )
+                    except Exception as exc:
+                        print("Poll restore failed:", exc)
+
+            for row in storage.list_active_giveaways():
+                if row["message_id"]:
+                    try:
+                        self.add_view(giveaway.GiveawayView(row["id"]))
+                    except Exception as exc:
+                        print("Giveaway restore failed:", exc)
+
         if not reminder_worker.is_running():
             reminder_worker.start()
 
