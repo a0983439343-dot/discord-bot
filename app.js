@@ -1,7 +1,9 @@
 (()=>{
 "use strict";
+
 const C=Object.assign({
   brandName:"Discord Bot",
+  shortName:"B",
   creator:"Your Name",
   version:"v1.0.0",
   inviteUrl:"",
@@ -9,88 +11,143 @@ const C=Object.assign({
   statusEndpoint:""
 },window.BOT_SITE_CONFIG||{});
 
-const COMMANDS=[
+const fallbackCommands=[
   {name:"/spam",category:"Core",title:"多頻道訊息發送",desc:"選擇多個文字頻道並發送指定內容與次數。",params:"content / count",example:"/spam content:你好 count:10"},
-  {name:"/stopspam",category:"Control",title:"停止進行中的發送",desc:"停止自己目前的工作；具備權限者可停止指定使用者。",params:"target?",example:"/stopspam"},
+  {name:"/stopspam",category:"Control",title:"停止進行中的發送",desc:"停止自己目前的工作；具備相應權限者可協助停止其他工作。",params:"target?",example:"/stopspam"},
   {name:"/history",category:"History & Cleanup",title:"歷史訊息清理",desc:"搜尋指定頻道範圍的歷史訊息，並依成員或內容篩選。",params:"channels / member / content",example:"/history"}
 ];
 
-const $=(selector,root=document)=>root.querySelector(selector);
-const $$=(selector,root=document)=>Array.from(root.querySelectorAll(selector));
+const commands=Array.isArray(window.BOT_COMMANDS)&&window.BOT_COMMANDS.length?window.BOT_COMMANDS:fallbackCommands;
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 
+function safeText(value){return String(value??"");}
 function toast(message,warning=false){
-  const el=document.createElement("div");
-  el.className="toast"+(warning?" warn":"");
-  el.textContent=message;
-  document.body.appendChild(el);
-  requestAnimationFrame(()=>el.classList.add("show"));
+  const item=document.createElement("div");
+  item.className="toast"+(warning?" warn":"");
+  item.textContent=message;
+  document.body.appendChild(item);
+  requestAnimationFrame(()=>item.classList.add("show"));
   setTimeout(()=>{
-    el.classList.remove("show");
-    setTimeout(()=>el.remove(),220);
+    item.classList.remove("show");
+    setTimeout(()=>item.remove(),220);
   },2600);
 }
 
-function setupLinks(){
-  $$(".invite-link").forEach(a=>{
+function setupConfig(){
+  $$("[data-brand-name]").forEach(el=>el.textContent=C.brandName);
+  const title=document.querySelector("title");
+  if(title)title.textContent=C.brandName+" — Official";
+  const version=$("#versionText");
+  if(version)version.textContent=C.version;
+  const year=$("#year");
+  if(year)year.textContent=new Date().getFullYear();
+
+  $$(".invite-link").forEach(link=>{
     if(C.inviteUrl){
-      a.href=C.inviteUrl;
-      a.target="_blank";
-      a.rel="noreferrer";
+      link.href=C.inviteUrl;
+      link.target="_blank";
+      link.rel="noopener noreferrer";
     }else{
-      a.href="#";
-      a.addEventListener("click",e=>{
-        e.preventDefault();
-        toast("尚未設定 inviteUrl，請在 site-config.js 填入 Discord 邀請連結。",true);
+      link.href="#";
+      link.addEventListener("click",event=>{
+        event.preventDefault();
+        toast("目前尚未設定 Bot 邀請連結。",true);
       });
     }
   });
-  $$(".support-link").forEach(a=>{
+
+  $$(".support-link").forEach(link=>{
     if(C.supportUrl){
-      a.href=C.supportUrl;
-      a.target="_blank";
-      a.rel="noreferrer";
+      link.href=C.supportUrl;
+      link.target="_blank";
+      link.rel="noopener noreferrer";
     }else{
-      a.href="#";
-      a.addEventListener("click",e=>{
-        e.preventDefault();
-        toast("尚未設定 supportUrl，請在 site-config.js 填入支援社群連結。",true);
+      link.href="#";
+      link.addEventListener("click",event=>{
+        event.preventDefault();
+        toast("目前尚未設定支援連結。",true);
       });
     }
+  });
+}
+
+function setupTheme(){
+  const button=$("#themeBtn");
+  if(!button)return;
+  let theme=localStorage.getItem("bot-site-theme");
+  if(theme!=="light"&&theme!=="dark"){
+    theme=matchMedia("(prefers-color-scheme:light)").matches?"light":"dark";
+  }
+  const apply=()=>{
+    document.documentElement.dataset.theme=theme;
+    button.textContent=theme==="light"?"☼":"◐";
+    button.setAttribute("aria-label",theme==="light"?"切換深色模式":"切換淺色模式");
+    localStorage.setItem("bot-site-theme",theme);
+  };
+  apply();
+  button.addEventListener("click",()=>{
+    theme=theme==="light"?"dark":"light";
+    apply();
+  });
+}
+
+function setupMenu(){
+  const button=$("#menuBtn");
+  const nav=$("#navLinks");
+  if(!button||!nav)return;
+  button.addEventListener("click",()=>{
+    const open=nav.classList.toggle("mobile-open");
+    button.setAttribute("aria-expanded",String(open));
+  });
+  $$("a",nav).forEach(link=>link.addEventListener("click",()=>{
+    nav.classList.remove("mobile-open");
+    button.setAttribute("aria-expanded","false");
+  }));
+}
+
+function commandData(filter="all",query=""){
+  const q=query.trim().toLowerCase();
+  return commands.filter(command=>{
+    const matchesFilter=filter==="all"||command.category===filter;
+    const hay=[command.name,command.category,command.title,command.desc,command.params].map(safeText).join(" ").toLowerCase();
+    return matchesFilter&&(!q||hay.includes(q));
   });
 }
 
 function renderCommands(filter="all",query=""){
-  const root=$("#commands");
+  const root=$("#commandList");
   if(!root)return;
-  const q=query.trim().toLowerCase();
-  const data=COMMANDS.filter(c=>
-    (filter==="all"||c.category===filter)&&
-    (!q||[c.name,c.category,c.title,c.desc,c.params].join(" ").toLowerCase().includes(q))
-  );
-
+  const data=commandData(filter,query);
   if(!data.length){
-    root.innerHTML='<div class="demo-result">找不到符合條件的指令。</div>';
+    root.innerHTML='<div class="surface">找不到符合條件的指令。</div>';
     return;
   }
-
-  root.innerHTML=data.map(c=>(
-    '<article class="command">'+
+  root.innerHTML=data.map(command=>
+    '<article class="surface interactive command-card reveal">'+
       '<div>'+
-        '<div class="command-name"><code>'+c.name+'</code><span class="tag">'+c.category+'</span><span class="tag">'+c.params+'</span></div>'+
-        '<h3>'+c.title+'</h3>'+
-        '<p>'+c.desc+'</p>'+
+        '<div class="command-name">'+
+          '<code>'+safeText(command.name)+'</code>'+
+          '<span class="pill">'+safeText(command.category)+'</span>'+
+          '<span class="pill">'+safeText(command.params)+'</span>'+
+        '</div>'+
+        '<h3>'+safeText(command.title)+'</h3>'+
+        '<p>'+safeText(command.desc)+'</p>'+
       '</div>'+
-      '<div class="command-side"><span class="example">'+c.example+'</span><button class="copy" type="button" data-copy="'+encodeURIComponent(c.example)+'">複製</button></div>'+
+      '<div class="command-side">'+
+        '<span class="example" title="'+safeText(command.example)+'">'+safeText(command.example)+'</span>'+
+        '<button class="copy-btn" type="button" data-copy="'+encodeURIComponent(command.example||"")+'">複製</button>'+
+      '</div>'+
     '</article>'
-  )).join("");
-
-  $$(".copy",root).forEach(button=>{
+  ).join("");
+  activateInteractive(root);
+  $$(".copy-btn",root).forEach(button=>{
     button.addEventListener("click",async()=>{
       const value=decodeURIComponent(button.dataset.copy||"");
       try{
         await navigator.clipboard.writeText(value);
         button.textContent="已複製";
-        toast("已複製指令範例。");
+        toast("指令已複製。");
         setTimeout(()=>button.textContent="複製",1200);
       }catch{
         toast(value);
@@ -103,7 +160,7 @@ function setupCommands(){
   renderCommands();
   $$(".filter").forEach(button=>{
     button.addEventListener("click",()=>{
-      $$(".filter").forEach(x=>x.classList.remove("active"));
+      $$(".filter").forEach(item=>item.classList.remove("active"));
       button.classList.add("active");
       renderCommands(button.dataset.filter||"all",$("#commandSearch")?.value||"");
     });
@@ -117,131 +174,170 @@ function setupCommands(){
   });
 }
 
-function setupTheme(){
-  const button=$("#themeBtn");
-  if(!button)return;
-  let theme=localStorage.getItem("bot-site-theme")||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark");
-  const apply=()=>{
-    document.documentElement.dataset.theme=theme;
-    button.textContent=theme==="light"?"☼":"◐";
-    localStorage.setItem("bot-site-theme",theme);
-  };
-  apply();
-  button.addEventListener("click",()=>{
-    theme=theme==="light"?"dark":"light";
-    apply();
+function setupButtonGlow(){
+  $$(".btn,.icon-btn,.copy-btn,.filter").forEach(button=>{
+    button.addEventListener("pointermove",event=>{
+      const rect=button.getBoundingClientRect();
+      button.style.setProperty("--btn-x",((event.clientX-rect.left)/rect.width*100)+"%");
+      button.style.setProperty("--btn-y",((event.clientY-rect.top)/rect.height*100)+"%");
+    });
   });
 }
 
-function setupMobileMenu(){
-  const button=$("#menuBtn");
-  const nav=$(".nav-links");
-  if(!button||!nav)return;
-  button.addEventListener("click",()=>nav.classList.toggle("mobile-open"));
-  nav.querySelectorAll("a").forEach(a=>a.addEventListener("click",()=>nav.classList.remove("mobile-open")));
+function activateInteractive(root=document){
+  if(!matchMedia("(pointer:fine)").matches)return;
+  $$(".interactive",root).forEach(card=>{
+    if(card.dataset.interactiveBound==="1")return;
+    card.dataset.interactiveBound="1";
+    card.addEventListener("pointermove",event=>{
+      const rect=card.getBoundingClientRect();
+      const x=(event.clientX-rect.left)/rect.width;
+      const y=(event.clientY-rect.top)/rect.height;
+      const rx=(0.5-y)*7;
+      const ry=(x-0.5)*8;
+      card.style.setProperty("--glow-x",(x*100)+"%");
+      card.style.setProperty("--glow-y",(y*100)+"%");
+      card.style.setProperty("--rx",rx.toFixed(2)+"deg");
+      card.style.setProperty("--ry",ry.toFixed(2)+"deg");
+      card.style.transform="perspective(900px) translateY(-7px) scale(1.022) rotateX("+rx.toFixed(2)+"deg) rotateY("+ry.toFixed(2)+"deg)";
+    });
+    card.addEventListener("pointerleave",()=>{
+      card.style.transform="";
+      card.style.removeProperty("--glow-x");
+      card.style.removeProperty("--glow-y");
+      card.style.removeProperty("--rx");
+      card.style.removeProperty("--ry");
+    });
+  });
 }
 
-function setupDemos(){
-  const choose=$("#chooseBtn");
-  if(choose)choose.addEventListener("click",()=>{
-    const values=$$(".choice").slice(0,3).map(x=>x.value.trim()).filter(Boolean);
-    if(!values.length){toast("至少輸入一個選項。",true);return;}
-    $("#chooseResult").textContent="結果： "+values[Math.floor(Math.random()*values.length)];
+function setupVisualGrid(){
+  const grid=$("#visualGrid");
+  if(!grid)return;
+  grid.innerHTML=Array.from({length:36},(_,index)=>"<i data-cell='"+index+"'></i>").join("");
+  const cells=$$("i",grid);
+  let previous=-1;
+  cells.forEach((cell,index)=>{
+    cell.addEventListener("pointerenter",()=>{
+      if(previous>=0)cells[previous].classList.remove("hot");
+      cell.classList.add("hot");
+      previous=index;
+    });
   });
-
-  const anonButton=$("#anonBtn");
-  if(anonButton)anonButton.addEventListener("click",()=>{
-    const value=$("#anonInput")?.value.trim();
-    if(!value){toast("先輸入一段留言。",true);return;}
-    $("#anonResult").textContent="匿名玩家： "+value;
+  grid.addEventListener("pointerleave",()=>{
+    cells.forEach(cell=>cell.classList.remove("hot"));
+    previous=-1;
   });
 }
 
-function updateService(serviceId,dotId,label,good=true){
-  const textEl=$(serviceId);
-  const dotEl=$(dotId);
-  if(textEl)textEl.textContent=label;
-  if(dotEl)dotEl.className="service-dot"+(good?" good":" bad");
+function setupReveal(){
+  const targets=$$(".reveal");
+  if(!("IntersectionObserver" in window)){
+    targets.forEach(el=>el.classList.add("in"));
+    return;
+  }
+  const observer=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        entry.target.classList.add("in");
+        observer.unobserve(entry.target);
+      }
+    });
+  },{threshold:.12});
+  targets.forEach(el=>observer.observe(el));
+}
+
+function setupMouse(){
+  if(!matchMedia("(pointer:fine)").matches)return;
+  let raf=0;
+  document.addEventListener("pointermove",event=>{
+    if(raf)return;
+    raf=requestAnimationFrame(()=>{
+      document.documentElement.style.setProperty("--mouse-x",event.clientX+"px");
+      document.documentElement.style.setProperty("--mouse-y",event.clientY+"px");
+      raf=0;
+    });
+  },{passive:true});
+}
+
+function setupScrollSpy(){
+  const sections=$$("main section[id]");
+  const links=$$("#navLinks a");
+  if(!("IntersectionObserver" in window)||!sections.length)return;
+  const map=new Map(links.map(link=>[link.getAttribute("href")?.slice(1),link]));
+  const observer=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        links.forEach(link=>link.classList.remove("active"));
+        map.get(entry.target.id)?.classList.add("active");
+      }
+    });
+  },{rootMargin:"-35% 0px -55% 0px",threshold:0});
+  sections.forEach(section=>observer.observe(section));
+}
+
+function setupParallax(){
+  if(!matchMedia("(pointer:fine)").matches)return;
+  const visual=$(".hero-visual");
+  if(!visual)return;
+  visual.addEventListener("pointermove",event=>{
+    const rect=visual.getBoundingClientRect();
+    const x=(event.clientX-rect.left)/rect.width-.5;
+    const y=(event.clientY-rect.top)/rect.height-.5;
+    const consoleEl=$(".console",visual);
+    const floatA=$(".float-a",visual);
+    const floatB=$(".float-b",visual);
+    if(consoleEl)consoleEl.style.transform="translate3d("+(x*8).toFixed(1)+"px,"+(y*8).toFixed(1)+"px,0)";
+    if(floatA)floatA.style.transform="translate3d("+(x*-12).toFixed(1)+"px,"+(y*-8).toFixed(1)+"px,0)";
+    if(floatB)floatB.style.transform="translate3d("+(x*10).toFixed(1)+"px,"+(y*7).toFixed(1)+"px,0)";
+  });
+  visual.addEventListener("pointerleave",()=>{
+    [$(".console",visual),$(".float-a",visual),$(".float-b",visual)].forEach(el=>{if(el)el.style.transform=""});
+  });
 }
 
 async function loadStatus(){
-  const endpoint=C.statusEndpoint;
-  if(!endpoint){
-    $("#statusTitle").textContent="Status data unavailable";
-    $("#statusDetail").textContent="尚未設定公開心跳端點。";
-    $("#lastUpdate").textContent="Not connected";
-    $("#heroStatus").textContent="Unknown";
-    $("#heroState").textContent="PLATFORM READY";
-    return;
-  }
-
+  if(!C.statusEndpoint)return;
   try{
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),6500);
-    const response=await fetch(endpoint,{
-      cache:"no-store",
-      signal:controller.signal,
-      headers:{Accept:"application/json"}
-    });
+    const response=await fetch(C.statusEndpoint,{cache:"no-store",signal:controller.signal,headers:{Accept:"application/json"}});
     clearTimeout(timer);
-    if(!response.ok)throw new Error("status "+response.status);
-
+    if(!response.ok)throw new Error();
     const data=await response.json();
-    const status=data.status==="online"||data.status==="operational"
-      ?"operational"
-      :data.status==="degraded"
-      ?"degraded"
-      :data.status==="offline"
-      ?"offline"
-      :"unknown";
-
-    const labels={
-      operational:"All Systems Operational",
-      degraded:"Partial Degradation",
-      offline:"Bot Offline",
-      unknown:"Status data unavailable"
-    };
-
-    $("#statusTitle").textContent=labels[status];
-    $("#statusDetail").textContent=data.message||"Live heartbeat connected.";
-    $("#lastUpdate").textContent=data.updatedAt?new Date(data.updatedAt).toLocaleString("zh-TW"):"Just now";
-    $("#heroStatus").textContent=status==="operational"?"Operational":status;
-    $("#heroState").textContent=status==="operational"?"LIVE PLATFORM":"PLATFORM CHECK";
-    $("#statusDot").className="status-big-dot "+status;
-    $("#statLatency").textContent=Number.isFinite(Number(data.latency))?Math.round(Number(data.latency))+" ms":"—";
-    $("#statServers").textContent=data.servers!=null?Number(data.servers).toLocaleString():"—";
-    $("#statUptime").textContent=data.uptime||"—";
-
-    updateService("#botService","#botDot",status==="operational"?"Operational":status==="offline"?"Offline":"Unavailable",status==="operational");
-    updateService("#apiService","#apiDot",data.api===false?"Unavailable":"Operational",data.api!==false);
-    updateService("#dbService","#dbDot",data.database===false?"Unavailable":"Operational",data.database!==false);
+    const state=data.status==="online"||data.status==="operational"?"operational":data.status==="degraded"?"degraded":data.status==="offline"?"offline":"unknown";
+    const labels={operational:"服務正常運作",degraded:"部分功能異常",offline:"服務暫時離線",unknown:"狀態資料無法確認"};
+    $("#statusTitle").textContent=labels[state];
+    $("#statusDetail").textContent=data.message||"服務狀態已更新。";
+    $("#lastUpdate").textContent=data.updatedAt?new Date(data.updatedAt).toLocaleString("zh-TW"):"剛剛更新";
+    $("#heroStatus").textContent=state==="operational"?"正常":state==="degraded"?"部分異常":state==="offline"?"離線":"未知";
+    $("#heroState").textContent=state==="operational"?"SERVICE ONLINE":"SERVICE CHECK";
+    $("#statusDot").className="status-dot-large "+state;
   }catch{
-    $("#statusTitle").textContent="Status data unavailable";
-    $("#statusDetail").textContent="無法取得即時心跳資料。";
-    $("#lastUpdate").textContent="Fetch failed";
-    $("#heroStatus").textContent="Unavailable";
-    $("#heroState").textContent="STATUS UNAVAILABLE";
-    $("#statusDot").className="status-big-dot offline";
-    updateService("#botService","#botDot","Unavailable",false);
-    updateService("#apiService","#apiDot","Unavailable",false);
-    updateService("#dbService","#dbDot","Unknown",false);
+    $("#statusTitle").textContent="目前無法確認";
+    $("#statusDetail").textContent="暫時取得不到即時狀態資料。";
+    $("#lastUpdate").textContent="—";
+    $("#heroStatus").textContent="未知";
+    $("#heroState").textContent="SERVICE CHECK";
+    $("#statusDot").className="status-dot-large";
   }
 }
 
-function setup(){
-  document.title=C.brandName+" — Official";
-  const version=$("#versionText");
-  const year=$("#year");
-  if(version)version.textContent=C.version;
-  if(year)year.textContent=new Date().getFullYear();
-  setupLinks();
-  setupCommands();
+function init(){
+  setupConfig();
   setupTheme();
-  setupMobileMenu();
-  setupDemos();
+  setupMenu();
+  setupCommands();
+  setupVisualGrid();
+  setupButtonGlow();
+  activateInteractive(document);
+  setupReveal();
+  setupMouse();
+  setupScrollSpy();
+  setupParallax();
   loadStatus();
   if(C.statusEndpoint)setInterval(loadStatus,30000);
 }
 
-document.addEventListener("DOMContentLoaded",setup);
+document.addEventListener("DOMContentLoaded",init);
 })();
