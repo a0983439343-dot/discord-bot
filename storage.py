@@ -103,6 +103,13 @@ def init_db():
             user_id INTEGER NOT NULL,
             PRIMARY KEY(giveaway_id, user_id)
         );
+        CREATE TABLE IF NOT EXISTS notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL
+        );
         """)
         try:
             con.execute("ALTER TABLE polls ADD COLUMN multiple INTEGER NOT NULL DEFAULT 0")
@@ -392,3 +399,33 @@ def get_giveaway_entries(giveaway_id):
             "SELECT user_id FROM giveaway_entries WHERE giveaway_id=?",
             (giveaway_id,),
         ).fetchall()]
+
+def add_note(guild_id, user_id, title, content):
+    with connect() as con:
+        cur = con.execute(
+            "INSERT INTO notes(guild_id,user_id,title,content) VALUES(?,?,?,?)",
+            (guild_id, user_id, title, content),
+        )
+        return cur.lastrowid
+
+def list_notes(guild_id, user_id):
+    with connect() as con:
+        return con.execute(
+            "SELECT * FROM notes WHERE guild_id=? AND user_id=? ORDER BY id DESC",
+            (guild_id, user_id),
+        ).fetchall()
+
+def get_note(guild_id, user_id, note_id):
+    with connect() as con:
+        return con.execute(
+            "SELECT * FROM notes WHERE guild_id=? AND user_id=? AND id=?",
+            (guild_id, user_id, note_id),
+        ).fetchone()
+
+def delete_note(guild_id, user_id, note_id):
+    with connect() as con:
+        cur = con.execute(
+            "DELETE FROM notes WHERE guild_id=? AND user_id=? AND id=?",
+            (guild_id, user_id, note_id),
+        )
+        return cur.rowcount > 0
