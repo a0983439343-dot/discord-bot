@@ -22,108 +22,103 @@ def casual_actor(user: discord.abc.User) -> str:
 
 
 class RolePanelView(ui.View):
-    def __init__(self, panel_row):
+    def __init__(self, panel_row, guild=None):
         super().__init__(timeout=None)
         self.panel_id = int(panel_row["id"])
         self.mode = panel_row["mode"]
-        role_ids = json.loads(panel_row["role_ids"])
-        roles = []
-        guild = None
-        for g in getattr(self, "_guild_cache", []):
-            guild = g
-            break
+        self.role_ids = [int(x) for x in json.loads(panel_row["role_ids"])][:25]
+
+        if not guild:
+            return
+
+        roles = [guild.get_role(role_id) for role_id in self.role_ids]
+        roles = [role for role in roles if role and not role.is_default()]
 
         if self.mode == "select":
-            options = []
-            for rid in role_ids[:25]:
-                options.append(discord.SelectOption(label=f"身分組 {rid}", value=str(rid)))
-            select = ui.RoleSelect(
-                placeholder="選擇你想要的身分組",
-                min_values=1,
-                max_values=min(25, len(options)) if options else 1,
-                custom_id=f"rolepanel:{self.panel_id}",
-            )
-            self.add_item(select)
+            options = [
+                discord.SelectOption(
+                    label=role.name[:100],
+                    value=str(role.id),
+                    description="有就移除，沒有就拿到",
+                )
+                for role in roles
+            ]
+            if options:
+                select = ui.StringSelect(
+                    placeholder="選你想要的身分組（可多選）",
+                    min_values=1,
+                    max_values=min(25, len(options)),
+                    options=options,
+                    custom_id=f"rolepanel:{self.panel_id}",
+                )
+
+                async def select_callback(interaction: discord.Interaction):
+                    member = interaction.guild.get_member(interaction.user.id)
+                    bot_member = interaction.guild.me
+                    if not member or not bot_member:
+                        await interaction.response.send_message("我找不到你的成員資料。", ephemeral=True)
+                        return
+
+                    changes = []
+                    for raw_id in select.values:
+                        target = interaction.guild.get_role(int(raw_id))
+                        if not target or target.is_default():
+                            continue
+                        if target >= bot_member.top_role:
+                            changes.append(f"{target.name} 我碰不到")
+                            continue
+                        try:
+                            if target in member.roles:
+                                await member.remove_roles(target, reason="自助身分組面板")
+                                changes.append(f"拿掉 {target.mention}")
+                            else:
+                                await member.add_roles(target, reason="自助身分組面板")
+                                changes.append(f"拿到 {target.mention}")
+                        except discord.Forbidden:
+                            changes.append(f"{target.name} 改不了")
+
+                    await interaction.response.send_message(
+                        "、".join(changes) + "。" if changes else "這次沒有可變更的身分組。",
+                        ephemeral=True,
+                    )
+
+                select.callback = select_callback
+                self.add_item(select)
         else:
-            for index, rid in enumerate(role_ids[:25]):
+            for index, role in enumerate(roles):
                 button = ui.Button(
-                    label=f"身分組 {index + 1}",
+                    label=role.name[:80],
                     style=discord.ButtonStyle.secondary,
-                    custom_id=f"rolebutton:{self.panel_id}:{rid}",
+                    custom_id=f"rolebutton:{self.panel_id}:{role.id}",
                     row=index // 5,
                 )
+
+                async def button_callback(interaction: discord.Interaction, role_id=role.id):
+                    member = interaction.guild.get_member(interaction.user.id)
+                    target = interaction.guild.get_role(role_id)
+                    bot_member = interaction.guild.me
+                    if not member or not target or not bot_member:
+                        await interaction.response.send_message("這個身分組找不到了。", ephemeral=True)
+                        return
+                    if target.is_default() or target >= bot_member.top_role:
+                        await interaction.response.send_message("這個身分組我碰不到，請把 Bot 的最高身分組往上移。", ephemeral=True)
+                        return
+                    try:
+                        if target in member.roles:
+                            await member.remove_roles(target, reason="自助身分組面板")
+                            await interaction.response.send_message(f"好，{target.mention} 幫你拿掉了。", ephemeral=True)
+                        else:
+                            await member.add_roles(target, reason="自助身分組面板")
+                            await interaction.response.send_message(f"好了，{target.mention} 給你。", ephemeral=True)
+                    except discord.Forbidden:
+                        await interaction.response.send_message("Discord 不讓我改這個身分組，檢查一下 Bot 身分組位置。", ephemeral=True)
+
+                button.callback = button_callback
                 self.add_item(button)
 
     @classmethod
     def for_guild(cls, panel_row, guild):
-        view = cls.__new__(cls)
-        ui.View.__init__(view, timeout=None)
-        view.panel_id = int(panel_row["id"])
-        view.mode = panel_row["mode"]
-        role_ids = json.loads(panel_row["role_ids"])
-        if view.mode == "select":
-            select = ui.RoleSelect(
-                placeholder="選擇你想要的身分組",
-                min_values=1,
-                max_values=min(25, len(role_ids)),
-                custom_id=f"rolepanel:{view.panel_id}",
-            )
-            async def select_callback(interaction: discord.Interaction):
-                member = interaction.guild.get_member(interaction.user.id)
-                if not member:
-                    await interaction.response.send_message("我找不到你的成員資料。", ephemeral=True)
-                    return
-                wanted = {r.id for r in select.values if isinstance(r, discord.Role)}
-                manageable = []
-                for rid in wanted:
-                    role = interaction.guild.get_role(rid)
-                    if role and role < interaction.guild.me.top_role:
-                        manageable.append(role)
-                if not manageable:
-                    await interaction.response.send_message("這些身分組我碰不到，請把 Bot 的最高身分組往上移一點。", ephemeral=True)
-                    return
-                changes = []
-                for role in manageable:
-                    if role in member.roles:
-                        await member.remove_roles(role, reason="Role panel toggle")
-                        changes.append(f"移除 {role.mention}")
-                    else:
-                        await member.add_roles(role, reason="Role panel toggle")
-                        changes.append(f"拿到 {role.mention}")
-                await interaction.response.send_message("、".join(changes) + "。", ephemeral=True)
-            select.callback = select_callback
-            view.add_item(select)
-        else:
-            for index, rid in enumerate(role_ids[:25]):
-                role = guild.get_role(rid)
-                label = role.name[:80] if role else f"身分組 {rid}"
-                button = ui.Button(
-                    label=label,
-                    style=discord.ButtonStyle.secondary,
-                    custom_id=f"rolebutton:{view.panel_id}:{rid}",
-                    row=index // 5,
-                )
-                async def button_callback(interaction: discord.Interaction, role_id=rid):
-                    member = interaction.guild.get_member(interaction.user.id)
-                    role = interaction.guild.get_role(role_id)
-                    if not member or not role:
-                        await interaction.response.send_message("這個身分組找不到了。", ephemeral=True)
-                        return
-                    if role >= interaction.guild.me.top_role:
-                        await interaction.response.send_message("這個身分組比我高，我沒辦法幫你切換。", ephemeral=True)
-                        return
-                    try:
-                        if role in member.roles:
-                            await member.remove_roles(role, reason="Role panel toggle")
-                            await interaction.response.send_message(f"好，{role.mention} 幫你拿掉了。", ephemeral=True)
-                        else:
-                            await member.add_roles(role, reason="Role panel toggle")
-                            await interaction.response.send_message(f"好了，{role.mention} 給你。", ephemeral=True)
-                    except discord.Forbidden:
-                        await interaction.response.send_message("Discord 不讓我改這個身分組，檢查一下 Bot 身分組位置。", ephemeral=True)
-                button.callback = button_callback
-                view.add_item(button)
-        return view
+        return cls(panel_row, guild)
 
 
 class AutoReplyCog(commands.Cog):
@@ -182,6 +177,25 @@ class AutoReplyCog(commands.Cog):
         ok = storage.update_autoreply(interaction.guild.id, rule_id, trigger, response, mode)
         await interaction.response.send_message("改好了。" if ok else "找不到這個編號。", ephemeral=True)
 
+
+    @autoreply.command(name="on", description="重新開啟一組已經關掉的自動回覆")
+    @app_commands.describe(rule_id="自動回覆編號")
+    async def enable(self, interaction: discord.Interaction, rule_id: int):
+        if not self.admin(interaction):
+            await interaction.response.send_message("這個設定只有管理人員可以改。", ephemeral=True)
+            return
+        ok = storage.update_autoreply(interaction.guild.id, rule_id, enabled=1)
+        await interaction.response.send_message("開回來了。" if ok else "找不到這個編號。", ephemeral=True)
+
+    @autoreply.command(name="off", description="暫時關掉一組自動回覆，不用刪除")
+    @app_commands.describe(rule_id="自動回覆編號")
+    async def disable(self, interaction: discord.Interaction, rule_id: int):
+        if not self.admin(interaction):
+            await interaction.response.send_message("這個設定只有管理人員可以改。", ephemeral=True)
+            return
+        ok = storage.update_autoreply(interaction.guild.id, rule_id, enabled=0)
+        await interaction.response.send_message("先關掉了。" if ok else "找不到這個編號。", ephemeral=True)
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot or not message.content.strip():
@@ -190,8 +204,18 @@ class AutoReplyCog(commands.Cog):
         if not rules:
             return
         # 一則訊息最多觸發一組，避免洗屏。
+        response = rules[0]["response"]
+        response = (
+            response
+            .replace("{user}", getattr(message.author, "display_name", message.author.name))
+            .replace("{server}", message.guild.name)
+            .replace("{channel}", getattr(message.channel, "name", "這裡"))
+        )
         try:
-            await message.channel.send(rules[0]["response"])
+            await message.channel.send(
+                response[:2000],
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         except (discord.Forbidden, discord.HTTPException):
             pass
 
