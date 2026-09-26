@@ -78,6 +78,7 @@ def init_db():
             question TEXT NOT NULL,
             options TEXT NOT NULL,
             anonymous INTEGER NOT NULL DEFAULT 0,
+            multiple INTEGER NOT NULL DEFAULT 0,
             ends_at REAL,
             closed INTEGER NOT NULL DEFAULT 0
         );
@@ -103,6 +104,10 @@ def init_db():
             PRIMARY KEY(giveaway_id, user_id)
         );
         """)
+        try:
+            con.execute("ALTER TABLE polls ADD COLUMN multiple INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         
 def set_setting(guild_id: int, key: str, value: Any):
     with connect() as con:
@@ -306,11 +311,11 @@ def delete_role_panel(guild_id, panel_id):
         cur = con.execute("DELETE FROM role_panels WHERE guild_id=? AND id=?", (guild_id, panel_id))
         return cur.rowcount > 0
 
-def save_poll(guild_id, channel_id, message_id, question, options, anonymous=False, ends_at=None):
+def save_poll(guild_id, channel_id, message_id, question, options, anonymous=False, multiple=False, ends_at=None):
     with connect() as con:
         cur = con.execute(
-            "INSERT INTO polls(guild_id,channel_id,message_id,question,options,anonymous,ends_at) VALUES(?,?,?,?,?,?,?)",
-            (guild_id, channel_id, message_id, question, json.dumps(options, ensure_ascii=False), int(anonymous), ends_at),
+            "INSERT INTO polls(guild_id,channel_id,message_id,question,options,anonymous,multiple,ends_at) VALUES(?,?,?,?,?,?,?,?)",
+            (guild_id, channel_id, message_id, question, json.dumps(options, ensure_ascii=False), int(anonymous), int(multiple), ends_at),
         )
         return cur.lastrowid
 
