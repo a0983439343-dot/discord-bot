@@ -1,43 +1,123 @@
-import discord
-from discord import app_commands, ui
-from discord.ext import commands
 import asyncio
 import os
+import traceback
+from pathlib import Path
 
-active_spam = {}
-MAX_COUNT = 1000000000000
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
+
+import storage
+from cogs import utility, social, games, music, moderation, profile, voice, giveaway, media
+
+
+OWNER_ID = int(os.getenv("OWNER_ID", "1140900506198351924"))
+ALLOWED_ROLE_ID = int(os.getenv("ALLOWED_ROLE_ID", "1509577038443319416"))
+DEFAULT_GUILD_IDS = [1509184700294627430]
+GUILD_IDS = [
+    int(x.strip()) for x in os.getenv("GUILD_IDS", "").split(",")
+    if x.strip().isdigit()
+] or DEFAULT_GUILD_IDS
+MAX_COUNT = 1_000_000_000_000
 MAX_CONTENT_LEN = 2000
-OWNER_ID = 1140900506198351924
-GUILD_ID = discord.Object(id=1509184700294627430)
-ALLOWED_ROLE_ID = 1509577038443319416
 
-class SpamBot(commands.Bot):
+active_spam: dict[int, dict] = {}
+
+
+class ChannelSelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.selected_channels = []
+        self.select_menu = discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text, discord.ChannelType.public_thread],
+            min_values=1,
+            max_values=25,
+        )
+        self.select_menu.callback = self.select_callback
+        self.add_item(self.select_menu)
+
+    async def select_callback(self, interaction: discord.Interaction):
+        self.selected_channels = self.select_menu.values
+        self.stop()
+        try:
+            await interaction.response.edit_message(content="好，頻道收到了，我現在檢查權限。", view=None)
+        except Exception:
+            pass
+
+
+class Bot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.members = True
         intents.guilds = True
         intents.message_content = True
-        super().__init__(command_prefix='!', intents=intents)
+        intents.voice_states = True
+        super().__init__(command_prefix="!", intents=intents, help_command=None)
 
     async def setup_hook(self):
-        self.tree.copy_global_to(guild=GUILD_ID)
-        try:
-            await self.tree.sync(guild=GUILD_ID)
-        except Exception as e:
-            print(f"Sync error: {e}")
+        storage.init_db()
+        modules = [
+            utility, social, games, music, moderation, profile, voice, giveaway, media
+        ]
+        for module in modules:
+            try:
+                await module.setup(self)
+            except Exception:
+                print(f"Failed to load {module.__name__}")
+                traceback.print_exc()
 
-bot = SpamBot()
+        for guild_id in GUILD_IDS:
+            guild = discord.Object(id=guild_id)
+            self.tree.copy_global_to(guild=guild)
+            try:
+                await self.tree.sync(guild=guild)
+                print(f"Synced slash commands to guild {guild_id}")
+            except Exception as exc:
+                print(f"Slash command sync failed for {guild_id}: {exc}")
 
-@bot.tree.error
-async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    msg = f"❌ 指令執行發生錯誤: {error}"
-    try:
-        if interaction.response.is_done():
-            await interaction.followup.send(msg, ephemeral=True)
-        else:
-            await interaction.response.send_message(msg, ephemeral=True)
-    except Exception:
-        pass
+        # 重新掛回已經存在的互動面板，重啟 Bot 後按鈕也能繼續用。
+        for row in storage.get_role_panels():
+            guild = self.get_guild(row["guild_id"])
+            if guild and row["message_id"]:
+                try:
+                    self.add_view(social.RolePanelView.for_guild(row, guild))
+                except Exception as exc:
+                    print("Role panel restore failed:", exc)
+
+        for row in storage.list_active_polls():
+            if row["message_id"]:
+                try:
+                    self.add_view(
+                        social.PollView(
+                            row["id"],
+                            __import__("json").loads(row["options"]),
+                            bool(row["multiple"]),
+                        )
+                    )
+                except Exception as exc:
+                    print("Poll restore failed:", exc)
+
+        for row in storage.list_active_giveaways():
+            if row["message_id"]:
+                try:
+                    self.add_view(giveaway.GiveawayView(row["id"]))
+                except Exception as exc:
+                    print("Giveaway restore failed:", exc)
+
+    async def on_ready(self):
+        print(f"Logged in as {self.user} ({self.user.id})")
+        if not reminder_worker.is_running():
+            reminder_worker.start()
+
+    async def close(self):
+        reminder_worker.cancel()
+        for user_id in list(active_spam):
+            active_spam[user_id]["running"] = False
+        await super().close()
+
+
+bot = Bot()
+
 
 async def run_spam(user_id: int, notify_channel, target_channels: list, content: str, count: int):
     sent_count = 0
@@ -53,158 +133,137 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
     try:
         for _ in range(count):
             if not active_spam.get(user_id, {}).get("running", False):
-                await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
+                await notify(f"好，停掉了。剛剛大概送了 {sent_count} 則。")
                 return
 
             for ch in target_channels:
                 if ch.id in failed_channels:
                     continue
                 while True:
+                    if not active_spam.get(user_id, {}).get("running", False):
+                        await notify(f"好，停掉了。剛剛大概送了 {sent_count} 則。")
+                        return
                     try:
-                        await ch.send(content)
+                        await ch.send(content, allowed_mentions=discord.AllowedMentions.none())
                         sent_count += 1
                         break
-                    except discord.HTTPException as e:
-                        if e.status == 429:
-                            retry_after = getattr(e, 'retry_after', 2.0)
-                            elapsed = 0.0
-                            while elapsed < retry_after:
-                                if not active_spam.get(user_id, {}).get("running", False):
-                                    await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
-                                    return
-                                chunk = min(0.2, retry_after - elapsed)
-                                await asyncio.sleep(chunk)
-                                elapsed += chunk
+                    except discord.HTTPException as exc:
+                        if exc.status == 429:
+                            await asyncio.sleep(min(float(getattr(exc, "retry_after", 2.0)), 10.0))
                         else:
                             failed_channels.add(ch.id)
-                            await notify(f'⚠️ {ch.name} 遭遇阻礙，已停止該頻道發送: {e.text}')
+                            await notify(f"{ch.mention} 發不出去，我先跳過這個頻道。")
                             break
             await asyncio.sleep(0.01)
 
-        await notify(f'✅ 發送完成 共 {sent_count} 則訊息')
+        await notify(f"好了，總共送了 {sent_count} 則。")
     except asyncio.CancelledError:
-        await notify(f'指令已終止，共發送 {sent_count} 則訊息。')
         raise
     except Exception:
-        try:
-            await notify(f"❌ 發生非預期錯誤，指令已中止（已發送 {sent_count} 則）")
-        except Exception:
-            pass
+        await notify(f"這次中間出了點問題，已停止。剛剛送了 {sent_count} 則。")
     finally:
         active_spam.pop(user_id, None)
 
-class ChannelSelectView(ui.View):
-    def __init__(self):
-        super().__init__(timeout=180)
-        self.selected_channels = []
-        self.select_menu = ui.ChannelSelect(
-            channel_types=[discord.ChannelType.text, discord.ChannelType.public_thread],
-            min_values=1,
-            max_values=25
-        )
-        self.select_menu.callback = self.select_callback
-        self.add_item(self.select_menu)
 
-    async def select_callback(self, interaction: discord.Interaction):
-        self.selected_channels = self.select_menu.values
-        self.stop()
-        try:
-            await interaction.response.edit_message(content="⏳ 正在驗證頻道權限...", view=None)
-        except Exception:
-            pass
+def can_spam(interaction: discord.Interaction) -> bool:
+    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+        return False
+    member = interaction.user
+    return (
+        member.guild_permissions.administrator
+        or member.id == OWNER_ID
+        or any(role.id == ALLOWED_ROLE_ID for role in member.roles)
+    )
 
-@bot.tree.command(name="spam", description="在多個頻道執行指令")
-@app_commands.describe(content="內容", count="次數")
+
+@bot.tree.command(name="spam", description="在多個頻道快速發送同一句訊息")
+@app_commands.describe(content="要發的內容", count="發送次數")
 async def spam(interaction: discord.Interaction, content: str, count: int):
     if not interaction.guild:
-        await interaction.response.send_message('❌ 此指令僅能在伺服器中使用', ephemeral=True)
+        await interaction.response.send_message("這個只能在伺服器裡用。", ephemeral=True)
         return
-
+    if not can_spam(interaction):
+        await interaction.response.send_message("你沒有這個功能的權限。", ephemeral=True)
+        return
     if interaction.user.id in active_spam:
-        await interaction.response.send_message('⚠️ 您目前已有正在執行的指令', ephemeral=True)
+        await interaction.response.send_message("你已經有一個正在跑的，先停掉再開新的。", ephemeral=True)
         return
-
-    member = interaction.guild.get_member(interaction.user.id)
-    if not member:
-        await interaction.response.send_message('❌ 無法取得使用者資訊', ephemeral=True)
-        return
-
-    user_roles = [role.id for role in member.roles]
-    is_admin = member.guild_permissions.administrator
-    has_role = ALLOWED_ROLE_ID in user_roles
-
-    if not is_admin and interaction.user.id != OWNER_ID and not has_role:
-        await interaction.response.send_message('❌ 您沒有使用此指令的權限', ephemeral=True)
-        return
-
     if not 1 <= count <= MAX_COUNT:
-        await interaction.response.send_message(f'❌ 發送次數必須介於 1 到 {MAX_COUNT} 之間', ephemeral=True)
+        await interaction.response.send_message(f"次數要在 1 到 {MAX_COUNT} 之間。", ephemeral=True)
         return
-
     if not content or len(content) > MAX_CONTENT_LEN:
-        await interaction.response.send_message('❌ 訊息內容長度錯誤', ephemeral=True)
+        await interaction.response.send_message("內容太長，或是根本沒內容。", ephemeral=True)
         return
 
     active_spam[interaction.user.id] = {"running": False, "task": None}
     view = ChannelSelectView()
-    await interaction.response.send_message("請選擇要發送的頻道：", view=view, ephemeral=True)
+    await interaction.response.send_message("要發去哪幾個頻道？選完我再開始。", view=view, ephemeral=True)
     await view.wait()
 
     if not view.selected_channels:
         active_spam.pop(interaction.user.id, None)
-        await interaction.followup.send('⌛ 選擇逾時或已取消', ephemeral=True)
+        await interaction.followup.send("算了，這次沒有選頻道。", ephemeral=True)
         return
 
     guild_me = interaction.guild.get_member(bot.user.id)
     if not guild_me:
         active_spam.pop(interaction.user.id, None)
-        await interaction.followup.send('❌ 無法取得機器人權限資訊', ephemeral=True)
+        await interaction.followup.send("我找不到自己的成員資料，重試一下。", ephemeral=True)
         return
 
     valid_channels = []
-    skipped_channels = []
-    
-    for ch in view.selected_channels:
-        resolved = ch.resolve() or interaction.guild.get_channel(ch.id)
+    skipped = []
+    for selected in view.selected_channels:
+        resolved = selected.resolve() or interaction.guild.get_channel(selected.id)
         if resolved and isinstance(resolved, (discord.TextChannel, discord.Thread)):
             perms = resolved.permissions_for(guild_me)
-            send_allowed = perms.send_messages or getattr(perms, 'send_messages_in_threads', False)
+            send_allowed = perms.send_messages or getattr(perms, "send_messages_in_threads", False)
             if perms.view_channel and send_allowed:
                 valid_channels.append(resolved)
             else:
-                skipped_channels.append(resolved.name)
+                skipped.append(resolved.name)
         else:
-            skipped_channels.append(str(ch.id))
+            skipped.append(str(selected.id))
 
     if not valid_channels:
         active_spam.pop(interaction.user.id, None)
-        await interaction.followup.send(f'❌ 無法在所選頻道發送訊息 (缺少權限: {", ".join(skipped_channels)})', ephemeral=True)
+        await interaction.followup.send("選的頻道我都沒有足夠權限。", ephemeral=True)
         return
 
-    active_spam[interaction.user.id] = {"running": True}
-    embed = discord.Embed(title="✅ Spam Success", description=f"發送次數: {count}\n目標: {', '.join([c.mention for c in valid_channels])}", color=0x2ecc71)
-    if skipped_channels:
-        embed.add_field(name="⚠️ 跳過的頻道", value=", ".join(skipped_channels))
-    
+    active_spam[interaction.user.id] = {"running": True, "task": None}
+    embed = discord.Embed(
+        title="好，開始了",
+        description=f"次數：{count}\n頻道：{', '.join(c.mention for c in valid_channels)}",
+        color=0x57F287,
+    )
+    if skipped:
+        embed.add_field(name="我跳過了", value=", ".join(skipped), inline=False)
     await interaction.followup.send(embed=embed, ephemeral=True)
-    task = asyncio.create_task(run_spam(interaction.user.id, interaction.channel, valid_channels, content, count))
+
+    task = asyncio.create_task(
+        run_spam(interaction.user.id, interaction.channel, valid_channels, content, count)
+    )
     active_spam[interaction.user.id]["task"] = task
 
-@bot.tree.command(name="stopspam", description="終止進行中的指令")
-@app_commands.describe(member="指定想終止指令的使用者")
-async def stopspam(interaction: discord.Interaction, member: discord.Member = None):
-    target = member or interaction.user
 
+@bot.tree.command(name="stopspam", description="停止自己或有權限時停止別人的發送工作")
+@app_commands.describe(member="要停止誰，不填就是自己")
+async def stopspam(interaction: discord.Interaction, member: discord.Member | None = None):
+    target = member or interaction.user
+    if not interaction.guild:
+        await interaction.response.send_message("這個只能在伺服器裡用。", ephemeral=True)
+        return
     invoker = interaction.guild.get_member(interaction.user.id)
     if not invoker:
-        await interaction.response.send_message("❌ 無法取得使用者資訊", ephemeral=True)
+        await interaction.response.send_message("我找不到你的成員資料。", ephemeral=True)
         return
-
-    user_roles = [role.id for role in invoker.roles]
-    is_admin = invoker.guild_permissions.administrator
-    
-    if not is_admin and interaction.user.id != OWNER_ID and ALLOWED_ROLE_ID not in user_roles and interaction.user.id != target.id:
-        await interaction.response.send_message("❌ 無權限", ephemeral=True)
+    privileged = (
+        invoker.guild_permissions.administrator
+        or invoker.id == OWNER_ID
+        or any(role.id == ALLOWED_ROLE_ID for role in invoker.roles)
+    )
+    if target.id != interaction.user.id and not privileged:
+        await interaction.response.send_message("你不能停別人的工作。", ephemeral=True)
         return
 
     if target.id in active_spam:
@@ -212,53 +271,135 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member = No
         task = active_spam[target.id].get("task")
         if task and not task.done():
             task.cancel()
-        await interaction.response.send_message(f"✅ 已終止 <@{target.id}> 的指令", ephemeral=True)
+        await interaction.response.send_message(f"好，{target.mention} 的工作停掉了。", ephemeral=True)
     else:
-        await interaction.response.send_message("ℹ️ 目前並無執行中的指令", ephemeral=True)
+        await interaction.response.send_message("他現在沒有正在跑的發送工作。", ephemeral=True)
 
-@bot.tree.command(name="history", description="搜尋並刪除頻道歷史訊息")
-@app_commands.describe(count="搜尋範圍 (1-1000)", member="篩選使用者", content="篩選內容", ch1="頻道1", ch2="頻道2", ch3="頻道3")
-async def history_cmd(interaction: discord.Interaction, count: app_commands.Range[int, 1, 1000], ch1: discord.TextChannel = None, ch2: discord.TextChannel = None, ch3: discord.TextChannel = None, member: discord.Member = None, content: str = None):
-    invoker = interaction.guild.get_member(interaction.user.id)
-    if not invoker:
-        await interaction.response.send_message('❌ 無法取得使用者資訊', ephemeral=True)
+
+@bot.tree.command(name="history", description="搜尋並清掉歷史訊息")
+@app_commands.describe(
+    count="搜尋範圍 1 到 1000",
+    member="只處理這位成員",
+    content="只處理包含這段文字的訊息",
+    ch1="頻道 1",
+    ch2="頻道 2",
+    ch3="頻道 3",
+)
+async def history_cmd(
+    interaction: discord.Interaction,
+    count: app_commands.Range[int, 1, 1000],
+    ch1: discord.TextChannel | None = None,
+    ch2: discord.TextChannel | None = None,
+    ch3: discord.TextChannel | None = None,
+    member: discord.Member | None = None,
+    content: str | None = None,
+):
+    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message("這個只能在伺服器裡用。", ephemeral=True)
+        return
+    invoker = interaction.user
+    if not (
+        invoker.guild_permissions.administrator
+        or invoker.id == OWNER_ID
+        or any(role.id == ALLOWED_ROLE_ID for role in invoker.roles)
+    ):
+        await interaction.response.send_message("你沒有清理歷史訊息的權限。", ephemeral=True)
         return
 
-    user_roles = [role.id for role in invoker.roles]
-    is_admin = invoker.guild_permissions.administrator
-    
-    if interaction.user.id != OWNER_ID and not is_admin and ALLOWED_ROLE_ID not in user_roles:
-        await interaction.response.send_message('❌ 無權限', ephemeral=True)
-        return
-
-    target_channels = [c for c in [ch1, ch2, ch3] if c is not None] or [interaction.channel]
+    channels = [c for c in [ch1, ch2, ch3] if c] or [interaction.channel]
     guild_me = interaction.guild.get_member(bot.user.id)
-    
     if not guild_me:
-        await interaction.response.send_message('❌ 無法取得機器人資訊', ephemeral=True)
+        await interaction.response.send_message("我找不到自己的成員資料。", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
-    total_deleted = 0
-
-    def check(msg):
-        if member and msg.author.id != member.id: return False
-        if content and content not in msg.content: return False
-        return True
-
-    for ch in target_channels:
+    total = 0
+    skipped = []
+    for ch in channels:
+        if not isinstance(ch, discord.TextChannel):
+            continue
         perms = ch.permissions_for(guild_me)
         if not perms.manage_messages or not perms.read_message_history:
-            await interaction.followup.send(f'❌ 機器人在 {ch.mention} 缺乏必要權限', ephemeral=True)
+            skipped.append(ch.mention)
             continue
-            
+
+        def check(msg):
+            if member and msg.author.id != member.id:
+                return False
+            return not content or content.casefold() in msg.content.casefold()
+
         try:
             deleted = await ch.purge(limit=count, check=check)
-            total_deleted += len(deleted)
-            await asyncio.sleep(1)
-        except discord.HTTPException as e:
-            await interaction.followup.send(f"⚠️ {ch.mention} 清理失敗: HTTP {e.status}", ephemeral=True)
+            total += len(deleted)
+        except discord.HTTPException:
+            skipped.append(ch.mention)
 
-    await interaction.followup.send(f"✅ 完成，共刪除 {total_deleted} 則訊息", ephemeral=True)
+    msg = f"處理完了，共清掉 **{total}** 則。"
+    if skipped:
+        msg += "\n這些頻道我沒辦法處理：" + " ".join(skipped)
+    await interaction.followup.send(msg, ephemeral=True)
 
-bot.run(os.environ["DISCORD_TOKEN"])
+
+@bot.tree.error
+async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    print("Slash command error:", repr(error))
+    msg = "剛剛那一下沒成功，你再試一次看看。"
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except Exception:
+        pass
+
+
+@tasks.loop(seconds=15)
+async def reminder_worker():
+    try:
+        for row in storage.due_reminders():
+            channel = bot.get_channel(row["channel_id"])
+            if not channel:
+                continue
+            try:
+                await channel.send(f"<@{row['user_id']}> ⏰ 你之前叫我提醒你的：{row['message']}")
+            except Exception:
+                pass
+
+        now = __import__("time").time()
+        for row in storage.list_active_polls():
+            if row["ends_at"] and row["ends_at"] <= now:
+                storage.close_poll(row["id"])
+                channel = bot.get_channel(row["channel_id"])
+                if channel and row["message_id"]:
+                    try:
+                        msg = await channel.fetch_message(row["message_id"])
+                        counts = storage.get_poll_counts(row["id"])
+                        embed = social.PollCog.build_embed(row, counts)
+                        embed.set_footer(text="投票結束")
+                        await msg.edit(embed=embed, view=None)
+                    except Exception:
+                        pass
+
+        for row in storage.list_active_giveaways():
+            if row["ends_at"] <= now:
+                guild = bot.get_guild(row["guild_id"])
+                if guild:
+                    cog = bot.get_cog("GiveawayCog")
+                    if cog:
+                        await cog.finish(row["id"], guild)
+    except Exception:
+        traceback.print_exc()
+
+
+@reminder_worker.before_loop
+async def before_reminder_worker():
+    await bot.wait_until_ready()
+
+
+storage.init_db()
+
+token = os.getenv("DISCORD_TOKEN")
+if not token:
+    raise RuntimeError("DISCORD_TOKEN 未設定。")
+
+bot.run(token)
