@@ -48,7 +48,14 @@ class ProfileCog(commands.Cog):
         embed.add_field(name="聊天", value=f"{data['msg_count']} 則", inline=True)
         embed.add_field(name="語音", value=fmt_seconds(data["voice_seconds"]), inline=True)
         embed.add_field(name="遊戲", value=f"{data['games_won']} 勝 / {data['games_played']} 場", inline=True)
-        embed.add_field(name="成就", value="先把成就系統玩起來就會慢慢解鎖。", inline=True)
+        achievements = []
+        if data["msg_count"] >= 1: achievements.append("初次聊天")
+        if data["msg_count"] >= 100: achievements.append("聊天破百")
+        if data["msg_count"] >= 1000: achievements.append("聊天室常客")
+        if data["games_won"] >= 1: achievements.append("第一次勝利")
+        if data["games_won"] >= 10: achievements.append("遊戲常勝軍")
+        if data["voice_seconds"] >= 36000: achievements.append("語音 10 小時")
+        embed.add_field(name="成就", value="、".join(achievements[-6:]) if achievements else "還沒解鎖，再玩玩看。", inline=True)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="leaderboard", description="看看伺服器目前的各種排行榜")
@@ -121,6 +128,32 @@ class ProfileCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
         except Exception:
             await interaction.response.send_message("Banner 這次沒抓到，再試一次。", ephemeral=True)
+
+    @app_commands.command(name="achievements", description="看看自己目前解鎖了哪些成就")
+    async def achievements(self, interaction):
+        data = storage.get_profile(interaction.guild.id, interaction.user.id)
+        items = [
+            (data["msg_count"] >= 1, "💬 第一次聊天"),
+            (data["msg_count"] >= 100, "💬 聊天破百"),
+            (data["msg_count"] >= 1000, "💬 聊天室常客"),
+            (data["games_won"] >= 1, "🎮 第一次勝利"),
+            (data["games_won"] >= 10, "🏆 遊戲常勝軍"),
+            (data["voice_seconds"] >= 36000, "🎤 語音 10 小時"),
+            (data["level"] >= 10, "⭐ Lv.10"),
+            (data["level"] >= 25, "⭐ Lv.25"),
+        ]
+        unlocked = [label for ok, label in items if ok]
+        locked = [label for ok, label in items if not ok]
+        text = "已解鎖：
+" + ("
+".join(unlocked) if unlocked else "還沒有，慢慢玩就有了。")
+        if locked:
+            text += "
+
+還沒解鎖：
+" + "
+".join(locked)
+        await interaction.response.send_message(text)
 
     @app_commands.command(name="membercount", description="看看伺服器現在有多少成員")
     async def membercount(self, interaction):
