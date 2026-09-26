@@ -18,6 +18,7 @@ const fallbackCommands=[
 ];
 
 const commands=Array.isArray(window.BOT_COMMANDS)&&window.BOT_COMMANDS.length?window.BOT_COMMANDS:fallbackCommands;
+const features=Array.isArray(window.BOT_FEATURES)?window.BOT_FEATURES:[];
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 
@@ -104,6 +105,24 @@ function setupMenu(){
     nav.classList.remove("mobile-open");
     button.setAttribute("aria-expanded","false");
   }));
+}
+
+function renderFeatures(){
+  const root=$("#featureGrid");
+  if(!root)return;
+  if(!features.length){
+    root.innerHTML="";
+    return;
+  }
+  root.innerHTML=features.map((feature,index)=>
+    '<article class="surface interactive reveal in">' +
+      '<div class="icon-box">'+safeText(String(index+1).padStart(2,"0"))+'</div>' +
+      '<div class="kicker">'+safeText(feature.name)+'</div>' +
+      '<h3>'+safeText(feature.title)+'</h3>' +
+      '<p>'+safeText(feature.desc)+'</p>' +
+    '</article>'
+  ).join("");
+  activateInteractive(root);
 }
 
 function commandData(filter="all",query=""){
@@ -401,6 +420,7 @@ function init(){
   setupConfig();
   setupTheme();
   setupMenu();
+  renderFeatures();
   setupCommands();
   setupVisualGrid();
   setupButtonGlow();
