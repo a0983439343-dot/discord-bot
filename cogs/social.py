@@ -126,6 +126,24 @@ class AutoReplyCog(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.views_registered = False
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        if self.views_registered:
+            return
+        for row in storage.get_role_panels():
+            guild = self.bot.get_guild(row["guild_id"])
+            if not guild or not row["message_id"]:
+                continue
+            try:
+                self.bot.add_view(
+                    RolePanelView.for_guild(row, guild),
+                    message_id=row["message_id"],
+                )
+            except Exception as exc:
+                print(f"Failed to restore role panel {row['id']}: {exc!r}")
+        self.views_registered = True
 
     def admin(self, interaction: discord.Interaction) -> bool:
         return bool(interaction.guild and isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.manage_guild)
@@ -345,6 +363,88 @@ class PollCog(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.views_registered = False
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        if self.views_registered:
+            return
+        for row in storage.list_active_polls():
+            guild = self.bot.get_guild(row["guild_id"])
+            if not guild or not row["message_id"]:
+                continue
+            try:
+                options = json.loads(row["options"])
+                self.bot.add_view(
+                    PollView(int(row["id"]), options, bool(row["multiple"])),
+                    message_id=row["message_id"],
+                )
+            except Exception as exc:
+                print(f"Failed to restore poll {row['id']}: {exc!r}")
+        self.views_registered = True
+
+    @staticmethod
+    def build_embed(row, counts):
+        options = json.loads(row["options"])
+        total = sum(counts.values())
+        lines = []
+        for i, option in enumerate(options):
+            n = counts.get(i, 0)
+            pct = (n / total * 100) if total else 0
+            lines.append(f"**{i+1}. {option}** — {n} 票（{pct:.0f}%）")
+        embed = discord.Embed(title="🗳️ " + row["question"], description="\n".join(lines), color=0x5865F2)
+        embed.set_footer(text=f"共 {total} 票" + (" · 可複選" if row["multiple"] else ""))
+        return embed
+
+    @poll.command(name="create", description="建立一個下拉選單投票")
+    @app_commands.describe(question="投票問題", options="選項用逗號分隔，2～10 個", multiple="可以選多個嗎", anonymous="是否不顯示投票者", minutes="幾分鐘後結束，0 代表不設時間")
+    async def create(self, interaction: discord.Interaction, question: str, options: str, multiple: bool = False, anonymous: bool = False, minutes: app_commands.Range[int,0,10080] = 0):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用喔。", ephemeral=True)
+            return
+        items = [x.strip() for x in options.split(",") if x.strip()]
+        if not (2 <= len(items) <= 10) or any(len(x) > 100 for x in items):
+            await interaction.response.send_message("選項請放 2～10 個，中間用逗號隔開。", ephemeral=True)
+            return
+        import time
+        ends_at = time.time() + minutes * 60 if minutes else None
+        poll_id = storage.save_poll(interaction.guild.id, interaction.channel.id, 0, question[:250], items, anonymous, multiple, ends_at)
+        row = storage.get_poll(poll_id)
+        view = PollView(poll_id, items, multiple)
+        embed = PollCog.build_embed(row, {})
+        embed.set_footer(text=("可複選" if multiple else "單選") + (f" · <t:{int(ends_at)}:R>" if ends_at else " · 不限時間"))
+        await interaction.response.send_message(embed=embed, view=view)
+        msg = await interaction.original_response()
+        with storage.connect() as con:
+            con.execute("UPDATE polls SET message_id=? WHERE id=?", (msg.id, poll_id))
+        await interaction.followup.send(f"投票開好了，編號 {poll_id}。", ephemeral=True)
+
+    @poll.command(name="end", description="提前結束一個投票")
+    @app_commands.describe(poll_id="投票編號")
+    async def end(self, interaction: discord.Interaction, poll_id: int):
+        if not interaction.guild or not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_messages:
+            await interaction.response.send_message("這個只有管理人員可以結束。", ephemeral=True)
+            return
+        row = storage.get_poll(poll_id)
+        if not row or row["guild_id"] != interaction.guild.id:
+            await interaction.response.send_message("找不到這個投票。", ephemeral=True)
+            return
+        storage.close_poll(poll_id)
+        counts = storage.get_poll_counts(poll_id)
+        ch = interaction.guild.get_channel(row["channel_id"])
+        if ch:
+            try:
+                msg = await ch.fetch_message(row["message_id"])
+                await msg.edit(embed=PollCog.build_embed(row, counts), view=None)
+            except Exception:
+                pass
+        await interaction.response.send_message("投票關掉了。", ephemeral=True)
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(AutoReplyCog(bot))
+    await bot.add_cog(RolePanelCog(bot))
+    await bot.add_cog(PollCog(bot))
 
     @staticmethod
     def build_embed(row, counts):
