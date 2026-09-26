@@ -337,6 +337,15 @@ def set_poll_vote(poll_id, user_id, option_index, multiple=False):
             (poll_id, user_id, option_index),
         )
 
+def replace_poll_votes(poll_id, user_id, option_indexes):
+    clean = sorted(set(int(x) for x in option_indexes))
+    with connect() as con:
+        con.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?", (poll_id, user_id))
+        con.executemany(
+            "INSERT INTO poll_votes(poll_id,user_id,option_index) VALUES(?,?,?)",
+            [(poll_id, user_id, idx) for idx in clean],
+        )
+
 def get_poll_counts(poll_id):
     with connect() as con:
         rows = con.execute(
