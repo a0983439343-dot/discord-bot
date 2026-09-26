@@ -323,6 +323,80 @@ async function loadStatus(){
   }
 }
 
+
+function setupGallery(){
+  const grid=$("#galleryGrid");
+  if(!grid)return;
+  const iconSets={
+    commands:["↗","Ⅱ","⌕","/","✦","⌁","↻","⌘"],
+    usage:["01","02","03","→","✓","◌","＋","→"],
+    visual:["✦","◒","◈","◌","◎","◇","✧","◍"],
+    interaction:["⌁","↗","✦","⌕","＋","◒","◇","↻"],
+    tips:["i","!","✓","?","•","→","⌁","✦"]
+  };
+  const bases=[
+    ["選擇頻道","先選需要操作的文字頻道。"],
+    ["輸入內容","把要發送的內容填入指令參數。"],
+    ["設定次數","依需求設定這次工作的發送數量。"],
+    ["查看工作","送出後注意 Discord 回覆的結果。"],
+    ["停止工作","需要時可以使用停止指令結束自己的工作。"],
+    ["指定對象","有相應權限時可以處理指定使用者的工作。"],
+    ["歷史搜尋","先縮小頻道範圍，再找需要的訊息。"],
+    ["成員篩選","可以從指定成員方向縮小搜尋範圍。"],
+    ["內容篩選","用關鍵字快速定位相關訊息。"],
+    ["權限確認","操作前先確認 Bot 有需要的 Discord 權限。"],
+    ["回覆結果","成功或失敗都應該看清楚 Bot 的回覆。"],
+    ["簡單流程","選擇 → 執行 → 查看結果。"],
+    ["少一步操作","把重複性的頻道操作集中處理。"],
+    ["集中管理","讓常用管理動作有固定入口。"],
+    ["快速定位","搜尋欄可以直接找到對應指令。"],
+    ["一鍵複製","指令範例可以直接複製。"],
+    ["分類瀏覽","依類型切換內容會更快。"],
+    ["手機也能看","版面會隨螢幕寬度重新排列。"],
+    ["深色模式","降低夜間瀏覽時的視覺干擾。"],
+    ["淺色模式","換成更明亮的背景與介面。"]
+  ];
+  const categories=[
+    ["commands","指令",1],
+    ["usage","使用",1],
+    ["visual","視覺",1],
+    ["interaction","互動",1],
+    ["tips","提示",1],
+    ["commands","指令",2]
+  ];
+  const items=[];
+  let n=1;
+  categories.forEach(([category,label,multiplier])=>{
+    bases.forEach((base,index)=>{
+      const icon=iconSets[category][index%iconSets[category].length];
+      items.push({id:n++,category,label,icon,title:base[0],desc:base[1]});
+    });
+  });
+  function render(){
+    const active=$(".filter[data-gallery-filter].active")?.dataset.galleryFilter||"all";
+    const query=$("#gallerySearch")?.value.trim().toLowerCase()||"";
+    const data=items.filter(item=>(active==="all"||item.category===active)&&(!query||(item.title+" "+item.desc+" "+item.label).toLowerCase().includes(query)));
+    if($("#galleryTotal"))$("#galleryTotal").textContent="· "+data.length;
+    grid.innerHTML=data.length?data.map(item=>(
+      '<article class="gallery-card interactive reveal in" data-gallery-item>'+
+        '<span class="gallery-tag">'+item.label+'</span>'+
+        '<span class="gallery-index">DETAIL '+String(item.id).padStart(3,"0")+'</span>'+
+        '<div class="gallery-icon">'+item.icon+'</div>'+
+        '<strong>'+item.title+'</strong>'+
+        '<p>'+item.desc+'</p>'+
+      '</article>'
+    )).join(""):'<div class="gallery-empty">沒有找到符合條件的內容。</div>';
+    activateInteractive(grid);
+  }
+  $$("#galleryFilters .filter").forEach(button=>button.addEventListener("click",()=>{
+    $$("#galleryFilters .filter").forEach(x=>x.classList.remove("active"));
+    button.classList.add("active");
+    render();
+  }));
+  $("#gallerySearch")?.addEventListener("input",render);
+  render();
+}
+
 function init(){
   setupConfig();
   setupTheme();
@@ -335,6 +409,7 @@ function init(){
   setupMouse();
   setupScrollSpy();
   setupParallax();
+  setupGallery();
   loadStatus();
   if(C.statusEndpoint)setInterval(loadStatus,30000);
 }
