@@ -58,6 +58,57 @@ class ModerationCog(commands.Cog):
         )
         return True
 
+    async def sync_mention_automod(self, guild: discord.Guild, limit: int):
+        rules = await guild.fetch_automod_rules()
+        name = "朋友群 Bot｜@ 防刷"
+        current = next((rule for rule in rules if rule.name == name), None)
+
+        if limit <= 0:
+            if current and current.enabled:
+                await current.edit(enabled=False, reason="停用 Mention 防刷")
+            return
+
+        trigger = discord.AutoModTrigger(mention_limit=limit)
+        actions = [discord.AutoModRuleAction()]
+        if current:
+            await current.edit(
+                trigger=trigger,
+                actions=actions,
+                enabled=True,
+                reason=f"設定 Mention 上限 {limit}",
+            )
+            return
+
+        await guild.create_automod_rule(
+            name=name,
+            event_type=discord.AutoModRuleEventType.message_send,
+            trigger=trigger,
+            actions=actions,
+            enabled=True,
+            reason=f"設定 Mention 上限 {limit}",
+        )
+
+    @commands.Cog.listener()
+    async def on_automod_action(self, execution: discord.AutoModAction):
+        try:
+            rule = await execution.fetch_rule()
+            if rule.name != "朋友群 Bot｜@ 防刷":
+                return
+            guild = self.bot.get_guild(execution.guild_id)
+            if not guild:
+                return
+            member = guild.get_member(execution.user_id)
+            channel = guild.get_channel(execution.channel_id)
+            await self.log_event(
+                guild,
+                "🚨 @ 防刷攔截",
+                f"**使用者**：{member.mention if member else execution.user_id}\n"
+                f"**頻道**：{channel.mention if channel else execution.channel_id}\n"
+                f"**原因**：超過 Mention 上限",
+            )
+        except Exception:
+            pass
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot:
@@ -95,13 +146,32 @@ class ModerationCog(commands.Cog):
                 q.clear()
 
     @security.command(name="mention-limit", description="設定一則訊息最多能標記幾個人")
-    @app_commands.describe(limit="例如 5；填 0 可關閉")
-    async def mention_limit(self, interaction, limit: app_commands.Range[int, 0, 25]):
+    @app_commands.describe(limit="例如 5；0 可關閉，最多 50")
+    async def mention_limit(self, interaction, limit: app_commands.Range[int, 0, 50]):
         if not self.can_manage(interaction):
             await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
             return
+
         storage.set_setting(interaction.guild.id, "mention_limit", limit)
-        await interaction.response.send_message(f"好了，一則訊息最多 {limit} 個 Mention。0 就是不限制。", ephemeral=True)
+
+        try:
+            await self.sync_mention_automod(interaction.guild, limit)
+            await interaction.response.send_message(
+                f"好了，現在一則訊息最多 @ {limit} 個。超過會在送出前直接被 Discord 擋掉。"
+                if limit else "@ 防刷關掉了。",
+                ephemeral=True,
+            )
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                f"Discord AutoMod 沒開成，但 Bot 自己的後備防護還在；超過 {limit} 個 @ 我會直接刪掉。"
+                if limit else "@ 防刷已關閉。",
+                ephemeral=True,
+            )
+        except discord.HTTPException:
+            await interaction.response.send_message(
+                "Discord AutoMod 這次沒設定成功，不過 Bot 自己的防護還在。",
+                ephemeral=True,
+            )
 
     @security.command(name="antispam", description="開關短時間訊息刷屏防護")
     @app_commands.describe(enabled="是否開啟", limit="幾則訊息算刷屏")
