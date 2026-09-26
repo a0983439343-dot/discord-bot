@@ -8,7 +8,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import storage
-from cogs import utility, social, games, music, moderation, profile, voice, giveaway, media, settings
+from cogs import utility, social, games, music, moderation, profile, voice, giveaway, media, settings, help as help_cog
 
 
 OWNER_ID = int(os.getenv("OWNER_ID", "1140900506198351924"))
@@ -52,12 +52,16 @@ class Bot(commands.Bot):
         intents.guilds = True
         intents.message_content = True
         intents.voice_states = True
+        if hasattr(intents, "auto_moderation_execution"):
+            intents.auto_moderation_execution = True
+        if hasattr(intents, "auto_moderation_configuration"):
+            intents.auto_moderation_configuration = True
         super().__init__(command_prefix="!", intents=intents, help_command=None)
 
     async def setup_hook(self):
         storage.init_db()
         modules = [
-            utility, social, games, music, moderation, profile, voice, giveaway, media, settings
+            utility, social, games, music, moderation, profile, voice, giveaway, media, settings, help_cog
         ]
         for module in modules:
             try:
