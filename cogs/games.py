@@ -105,7 +105,14 @@ class GameCog(commands.Cog):
         else:
             won = False
         await self.finish_game(interaction, won)
-        result = "你贏了！" if p > 21 is False and (b > 21 or p > b) else "我贏了。" if p != b else "平手。"
+        if p > 21:
+            result = "你爆掉，我贏了。"
+        elif won:
+            result = "你贏了！"
+        elif p == b:
+            result = "平手。"
+        else:
+            result = "我贏了。"
         await interaction.response.send_message(f"🃏 你：{player} = **{p}**\n我：{bot_cards} = **{b}**\n{result}")
 
     @game.command(name="higherlower", description="猜下一個數字比現在高還是低")
