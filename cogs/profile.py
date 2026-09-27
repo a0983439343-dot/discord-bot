@@ -28,6 +28,8 @@ class ProfileCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot:
             return
+        if not self.bot.is_allowed_guild(message.guild.id):
+            return
         result = storage.add_message_xp(message.guild.id, message.author.id)
         if result["level"] > result["old_level"]:
             try:
