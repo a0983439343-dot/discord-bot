@@ -183,23 +183,24 @@ class ModerationCog(commands.Cog):
             await interaction.response.send_message("這個設定要管理權限。", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
         try:
             await self.sync_mention_automod(interaction.guild, limit)
             storage.set_setting(interaction.guild.id, "mention_limit", limit)
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"好了，現在一則訊息最多 @ {limit} 個。超過會在送出前直接被 Discord 擋掉。"
                 if limit else "@ 防刷關掉了。",
                 ephemeral=True,
             )
         except discord.Forbidden:
-            await interaction.response.send_message(
-                f"Discord AutoMod 沒開成，但 Bot 自己的後備防護還在；超過 {limit} 個 @ 我會直接刪掉。"
+            await interaction.followup.send(
+                f"Discord AutoMod 沒開成；目前保留原本的後備防護設定。"
                 if limit else "@ 防刷已關閉。",
                 ephemeral=True,
             )
         except discord.HTTPException:
-            await interaction.response.send_message(
-                "Discord AutoMod 這次沒設定成功，不過 Bot 自己的防護還在。",
+            await interaction.followup.send(
+                "Discord AutoMod 這次沒設定成功；目前保留原本的後備防護設定。",
                 ephemeral=True,
             )
 
