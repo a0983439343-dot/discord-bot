@@ -64,32 +64,35 @@ class VoiceCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.temp_channels = {
-            row["channel_id"]
-            for row in storage.list_temp_channels()
-            if self.bot.is_allowed_guild(row["guild_id"])
-        }
+        self.joined_at.clear()
+        self.temp_channels.clear()
+
         now = time.time()
         for guild in self.bot.guilds:
             if not self.bot.is_allowed_guild(guild.id):
                 continue
             for voice_channel in guild.voice_channels:
                 for member in voice_channel.members:
-                    if member.bot:
-                        continue
-                    self.joined_at[(guild.id, member.id)] = now
-            for channel_id in list(self.temp_channels):
-                channel = guild.get_channel(channel_id)
-                if channel and not channel.members:
-                    try:
-                        await channel.delete(reason="臨時語音無人自動刪除")
-                    except discord.NotFound:
-                        storage.remove_temp_channel(channel.id)
-                    except discord.Forbidden:
-                        pass
-                    else:
-                        storage.remove_temp_channel(channel.id)
-                        self.temp_channels.discard(channel.id)
+                    if not member.bot:
+                        self.joined_at[(guild.id, member.id)] = now
+
+        for row in storage.list_temp_channels():
+            channel = self.bot.get_channel(row["channel_id"])
+            if not channel or not self.bot.is_allowed_guild(row["guild_id"]):
+                storage.remove_temp_channel(row["channel_id"])
+                continue
+            self.temp_channels.add(channel.id)
+            if not channel.members:
+                try:
+                    await channel.delete(reason="臨時語音無人自動刪除")
+                except discord.Forbidden:
+                    continue
+                except discord.NotFound:
+                    pass
+                except discord.HTTPException:
+                    continue
+                storage.remove_temp_channel(channel.id)
+                self.temp_channels.discard(channel.id)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
