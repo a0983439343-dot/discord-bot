@@ -141,21 +141,24 @@ class GiveawayCog(commands.Cog):
             winners = random.sample(entries, min(row["winners"], len(entries))) if entries else []
             ch = guild.get_channel(row["channel_id"])
             if ch and row["message_id"]:
+                ending = (
+                    f"🎁 **抽獎：{row['prize']}**\n"
+                    f"得獎人數：**{row['winners']}**\n"
+                    f"目前參加：**{len(entries)} 人**\n"
+                    f"剩下：<t:{int(row['ends_at'])}:R>\n\n"
+                    f"🏁 **抽獎結束**\n"
+                    + (f"🎉 得獎：{' '.join(f'<@{uid}>' for uid in winners)}" if winners else "沒有人參加。")
+                )
                 try:
                     msg = await ch.fetch_message(row["message_id"])
-                    ending = (
-                        f"🎁 **抽獎：{row['prize']}**\n"
-                        f"得獎人數：**{row['winners']}**\n"
-                        f"目前參加：**{len(entries)} 人**\n"
-                        f"剩下：<t:{int(row['ends_at'])}:R>\n\n"
-                        f"🏁 **抽獎結束**\n"
-                        + (f"🎉 得獎：{' '.join(f'<@{uid}>' for uid in winners)}" if winners else "沒有人參加。")
-                    )
                     await msg.edit(content=ending, view=None)
-                    if winners:
-                        await ch.send(f"🎉 恭喜 {' '.join(f'<@{uid}>' for uid in winners)}！抽到的是 **{row['prize']}**。")
                 except (discord.Forbidden, discord.NotFound, discord.HTTPException):
-                    return
+                    pass
+                if winners:
+                    try:
+                        await ch.send(f"🎉 恭喜 {' '.join(f'<@{uid}>' for uid in winners)}！抽到的是 **{row['prize']}**。")
+                    except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                        pass
             storage.record_giveaway_winners(giveaway_id, winners)
             storage.end_giveaway(giveaway_id)
 
