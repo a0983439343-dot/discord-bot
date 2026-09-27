@@ -57,7 +57,7 @@ class RolePanelView(ui.View):
                     member = interaction.guild.get_member(interaction.user.id)
                     bot_member = interaction.guild.me
                     if not member or not bot_member:
-                        await interaction.response.send_message("我找不到你的成員資料。", ephemeral=True)
+                        await interaction.followup.send("我找不到你的成員資料。", ephemeral=True)
                         return
 
                     changes = []
@@ -100,10 +100,10 @@ class RolePanelView(ui.View):
                     target = interaction.guild.get_role(role_id)
                     bot_member = interaction.guild.me
                     if not member or not target or not bot_member:
-                        await interaction.response.send_message("這個身分組找不到了。", ephemeral=True)
+                        await interaction.followup.send("這個身分組找不到了。", ephemeral=True)
                         return
                     if target.is_default() or target >= bot_member.top_role:
-                        await interaction.response.send_message("這個身分組我碰不到，請把 Bot 的最高身分組往上移。", ephemeral=True)
+                        await interaction.followup.send("這個身分組我碰不到，請把 Bot 的最高身分組往上移。", ephemeral=True)
                         return
                     try:
                         if target in member.roles:
@@ -393,7 +393,7 @@ class PollCog(commands.Cog):
             return
         for row in storage.list_active_polls():
             guild = self.bot.get_guild(row["guild_id"])
-            if not guild or not row["message_id"]:
+            if not guild or not self.bot.is_allowed_guild(guild.id) or not row["message_id"]:
                 continue
             try:
                 options = json.loads(row["options"])
