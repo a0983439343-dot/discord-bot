@@ -237,16 +237,7 @@ class MusicCog(commands.Cog):
                 if not player.queue:
                     player.current = None
                     player.skip_current = False
-                    await asyncio.sleep(20)
-                    if (
-                        self.players.get(guild_id) is player
-                        and not player.queue
-                        and player.voice
-                        and player.voice.is_connected()
-                        and not player.voice.is_playing()
-                    ):
-                        await player.voice.disconnect()
-                        self.players.pop(guild_id, None)
+                    asyncio.create_task(self._disconnect_if_idle(guild_id, player))
                     return
                 song = player.queue.pop(0)
                 player.current = song
@@ -289,6 +280,23 @@ class MusicCog(commands.Cog):
                 except Exception:
                     pass
                 continue
+
+    async def _disconnect_if_idle(self, guild_id: int, player: Player):
+        await asyncio.sleep(20)
+        async with self.lock_for(guild_id):
+            if (
+                self.players.get(guild_id) is player
+                and not player.queue
+                and player.current is None
+                and player.voice
+                and player.voice.is_connected()
+                and not player.voice.is_playing()
+            ):
+                try:
+                    await player.voice.disconnect()
+                except Exception:
+                    pass
+                self.players.pop(guild_id, None)
 
     def _after_callback(self, guild_id: int):
         loop = self.bot.loop
