@@ -117,6 +117,13 @@ def init_db():
             guild_id INTEGER NOT NULL,
             channel_id INTEGER PRIMARY KEY
         );
+        CREATE TABLE IF NOT EXISTS voice_sessions (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            started_at REAL NOT NULL,
+            PRIMARY KEY(guild_id, user_id)
+        );
         CREATE TABLE IF NOT EXISTS notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             guild_id INTEGER NOT NULL,
@@ -548,3 +555,46 @@ def list_temp_channels(guild_id=None):
             "SELECT * FROM temp_channels WHERE guild_id=? ORDER BY channel_id",
             (guild_id,),
         ).fetchall()
+
+
+
+def start_voice_session(guild_id, user_id, channel_id, started_at=None):
+    started_at = started_at or time.time()
+    with connect() as con:
+        con.execute(
+            "INSERT INTO voice_sessions(guild_id,user_id,channel_id,started_at) VALUES(?,?,?,?) "
+            "ON CONFLICT(guild_id,user_id) DO UPDATE SET channel_id=excluded.channel_id, started_at=excluded.started_at",
+            (guild_id, user_id, channel_id, started_at),
+        )
+
+
+def get_voice_session(guild_id, user_id):
+    with connect() as con:
+        return con.execute(
+            "SELECT * FROM voice_sessions WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        ).fetchone()
+
+
+def list_voice_sessions(guild_id=None):
+    with connect() as con:
+        if guild_id is None:
+            return con.execute("SELECT * FROM voice_sessions ORDER BY guild_id,user_id").fetchall()
+        return con.execute(
+            "SELECT * FROM voice_sessions WHERE guild_id=? ORDER BY user_id",
+            (guild_id,),
+        ).fetchall()
+
+
+def finish_voice_session(guild_id, user_id):
+    with connect() as con:
+        row = con.execute(
+            "SELECT * FROM voice_sessions WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        ).fetchone()
+        if row:
+            con.execute(
+                "DELETE FROM voice_sessions WHERE guild_id=? AND user_id=?",
+                (guild_id, user_id),
+            )
+        return row
