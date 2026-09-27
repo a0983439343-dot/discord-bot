@@ -351,6 +351,8 @@ async def on_tree_error(interaction: discord.Interaction, error: app_commands.Ap
 async def reminder_worker():
     try:
         for row in storage.due_reminders():
+            if not bot.is_allowed_guild(row["guild_id"]):
+                continue
             channel = bot.get_channel(row["channel_id"])
             if not channel:
                 continue
@@ -362,6 +364,8 @@ async def reminder_worker():
 
         now = __import__("time").time()
         for row in storage.list_active_polls():
+            if not bot.is_allowed_guild(row["guild_id"]):
+                continue
             if row["ends_at"] and row["ends_at"] <= now:
                 storage.close_poll(row["id"])
                 channel = bot.get_channel(row["channel_id"])
@@ -376,6 +380,8 @@ async def reminder_worker():
                         pass
 
         for row in storage.list_active_giveaways():
+            if not bot.is_allowed_guild(row["guild_id"]):
+                continue
             if row["ends_at"] <= now:
                 guild = bot.get_guild(row["guild_id"])
                 if guild:
