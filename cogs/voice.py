@@ -31,6 +31,7 @@ class VoiceCog(commands.Cog):
                 reason=f"臨時語音 by {interaction.user}",
             )
             self.temp_channels.add(channel.id)
+            storage.add_temp_channel(interaction.guild.id, channel.id)
             await interaction.user.move_to(channel)
             await interaction.response.send_message(f"好了，幫你開了 {channel.mention}。沒人了我會幫你清掉。")
         except discord.Forbidden:
@@ -62,7 +63,40 @@ class VoiceCog(commands.Cog):
         await interaction.response.send_message(f"你總共待過語音 **{h} 小時 {m} 分**。")
 
     @commands.Cog.listener()
+    async def on_ready(self):
+        if not self.bot.is_allowed_guild(getattr(self.bot.guilds[0], "id", 0)) if self.bot.guilds else True:
+            pass
+        self.temp_channels = {
+            row["channel_id"]
+            for row in storage.list_temp_channels()
+            if self.bot.is_allowed_guild(row["guild_id"])
+        }
+        now = time.time()
+        for guild in self.bot.guilds:
+            if not self.bot.is_allowed_guild(guild.id):
+                continue
+            for voice_channel in guild.voice_channels:
+                for member in voice_channel.members:
+                    if member.bot:
+                        continue
+                    self.joined_at[(guild.id, member.id)] = now
+            for channel_id in list(self.temp_channels):
+                channel = guild.get_channel(channel_id)
+                if channel and not channel.members:
+                    try:
+                        await channel.delete(reason="臨時語音無人自動刪除")
+                    except discord.NotFound:
+                        storage.remove_temp_channel(channel.id)
+                    except discord.Forbidden:
+                        pass
+                    else:
+                        storage.remove_temp_channel(channel.id)
+                        self.temp_channels.discard(channel.id)
+
+    @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        if not self.bot.is_allowed_guild(member.guild.id):
+            return
         if member.bot or not member.guild:
             return
         key = (member.guild.id, member.id)
@@ -96,8 +130,9 @@ class VoiceCog(commands.Cog):
             if ch and ch.id in self.temp_channels and len(ch.members) == 0:
                 try:
                     await ch.delete(reason="臨時語音無人自動刪除")
-                except Exception:
+                except (discord.Forbidden, discord.NotFound, discord.HTTPException):
                     pass
+                storage.remove_temp_channel(ch.id)
                 self.temp_channels.discard(ch.id)
 
 
