@@ -54,6 +54,11 @@ class SettingsCog(commands.Cog):
         if not self.admin(interaction):
             await interaction.response.send_message("這個設定要管理伺服器權限。", ephemeral=True)
             return
+        if role:
+            bot_member = interaction.guild.me
+            if role.is_default() or role >= bot_member.top_role or not bot_member.guild_permissions.manage_roles:
+                await interaction.response.send_message("這個身分組我沒辦法發，請確認它比 Bot 低，而且 Bot 有管理身分組權限。", ephemeral=True)
+                return
         storage.set_setting(interaction.guild.id, "autorole_id", role.id if role else 0)
         await interaction.response.send_message(f"新人身分組已{'設成 ' + role.mention if role else '關閉'}。", ephemeral=True)
 
@@ -63,8 +68,13 @@ class SettingsCog(commands.Cog):
         if not self.admin(interaction):
             await interaction.response.send_message("這個設定要管理伺服器權限。", ephemeral=True)
             return
+        if channel:
+            perms = channel.permissions_for(interaction.guild.me)
+            if not perms.view_channel or not perms.send_messages:
+                await interaction.response.send_message("我不能在那個頻道發歡迎訊息，先檢查 Bot 的頻道權限。", ephemeral=True)
+                return
         storage.set_setting(interaction.guild.id, "welcome_channel_id", channel.id if channel else 0)
-        storage.set_setting(interaction.guild.id, "welcome_message", message[:1500])
+        storage.set_setting(interaction.guild.id, "welcome_message", message.strip()[:1500])
         await interaction.response.send_message(
             f"歡迎訊息{'開好了，會發到 ' + channel.mention if channel else '關掉了'}。",
             ephemeral=True,
@@ -76,8 +86,13 @@ class SettingsCog(commands.Cog):
         if not self.admin(interaction):
             await interaction.response.send_message("這個設定要管理伺服器權限。", ephemeral=True)
             return
+        if channel:
+            perms = channel.permissions_for(interaction.guild.me)
+            if not perms.view_channel or not perms.send_messages:
+                await interaction.response.send_message("我不能在那個頻道發離開通知，先檢查 Bot 的頻道權限。", ephemeral=True)
+                return
         storage.set_setting(interaction.guild.id, "goodbye_channel_id", channel.id if channel else 0)
-        storage.set_setting(interaction.guild.id, "goodbye_message", message[:1500])
+        storage.set_setting(interaction.guild.id, "goodbye_message", message.strip()[:1500])
         await interaction.response.send_message(
             f"離開通知{'開好了，會發到 ' + channel.mention if channel else '關掉了'}。",
             ephemeral=True,
@@ -89,7 +104,10 @@ class SettingsCog(commands.Cog):
         if not interaction.guild:
             await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
             return
-        nid = storage.add_note(interaction.guild.id, interaction.user.id, title[:100], content[:2500])
+        if not title.strip() or not content.strip() or len(content) > 1800:
+            await interaction.response.send_message("標題和內容不能空白，內容最多 1800 字。", ephemeral=True)
+            return
+        nid = storage.add_note(interaction.guild.id, interaction.user.id, title.strip()[:100], content.strip()[:1800])
         await interaction.response.send_message(f"記好了，筆記編號 {nid}。", ephemeral=True)
 
     @note.command(name="list", description="看看自己存過哪些筆記")
@@ -98,7 +116,7 @@ class SettingsCog(commands.Cog):
         if not rows:
             await interaction.response.send_message("你還沒有筆記。", ephemeral=True)
             return
-        text = "\n".join(f"{r['id']}｜{r['title']}" for r in rows[:30])
+        text = "\n".join(f"{r['id']}｜{r['title'][:80]}" for r in rows[:15])
         await interaction.response.send_message(text, ephemeral=True)
 
     @note.command(name="show", description="查看自己的指定筆記")
@@ -108,7 +126,7 @@ class SettingsCog(commands.Cog):
         if not row:
             await interaction.response.send_message("找不到這篇筆記。", ephemeral=True)
             return
-        await interaction.response.send_message(f"📝 **{row['title']}**\n{row['content']}", ephemeral=True)
+        await interaction.response.send_message(f"📝 **{row['title']}**\n{row['content'][:1800]}", ephemeral=True)
 
     @note.command(name="delete", description="刪掉自己的指定筆記")
     @app_commands.describe(note_id="筆記編號")
@@ -123,7 +141,7 @@ class MemberEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        if member.bot:
+        if member.bot or not self.bot.is_allowed_guild(member.guild.id):
             return
         role_id = storage.get_setting(member.guild.id, "autorole_id", 0)
         if role_id:
@@ -144,6 +162,8 @@ class MemberEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
+        if not self.bot.is_allowed_guild(member.guild.id):
+            return
         channel_id = storage.get_setting(member.guild.id, "goodbye_channel_id", 0)
         channel = member.guild.get_channel(int(channel_id)) if channel_id else None
         if channel:
