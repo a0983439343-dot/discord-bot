@@ -64,17 +64,51 @@ class VoiceCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        allowed_guild_ids = {guild.id for guild in self.bot.guilds if self.bot.is_allowed_guild(guild.id)}
+        now = time.time()
+
+        # 先結算上次 Bot 離線期間已經離開語音的舊 session。
+        for row in storage.list_voice_sessions():
+            if row["guild_id"] not in allowed_guild_ids:
+                storage.finish_voice_session(row["guild_id"], row["user_id"])
+                continue
+            guild = self.bot.get_guild(row["guild_id"])
+            member = guild.get_member(row["user_id"]) if guild else None
+            if not member or not member.voice or not member.voice.channel:
+                elapsed = max(0, now - row["started_at"])
+                if elapsed:
+                    storage.add_voice_seconds(row["guild_id"], row["user_id"], elapsed)
+                storage.finish_voice_session(row["guild_id"], row["user_id"])
+
         self.joined_at.clear()
         self.temp_channels.clear()
 
-        now = time.time()
         for guild in self.bot.guilds:
             if not self.bot.is_allowed_guild(guild.id):
                 continue
             for voice_channel in guild.voice_channels:
                 for member in voice_channel.members:
-                    if not member.bot:
-                        self.joined_at[(guild.id, member.id)] = now
+                    if member.bot:
+                        continue
+                    session = storage.get_voice_session(guild.id, member.id)
+                    if session:
+                        self.joined_at[(guild.id, member.id)] = session["started_at"]
+                        if session["channel_id"] != voice_channel.id:
+                            storage.start_voice_session(
+                                guild.id,
+                                member.id,
+                                voice_channel.id,
+                                session["started_at"],
+                            )
+                    else:
+                        started_at = now
+                        storage.start_voice_session(
+                            guild.id,
+                            member.id,
+                            voice_channel.id,
+                            started_at,
+                        )
+                        self.joined_at[(guild.id, member.id)] = started_at
 
         for row in storage.list_temp_channels():
             channel = self.bot.get_channel(row["channel_id"])
@@ -102,7 +136,9 @@ class VoiceCog(commands.Cog):
             return
         key = (member.guild.id, member.id)
         if before.channel is None and after.channel is not None:
-            self.joined_at[key] = time.time()
+            started_at = time.time()
+            self.joined_at[key] = started_at
+            storage.start_voice_session(member.guild.id, member.id, after.channel.id, started_at)
             channel_id = storage.get_setting(member.guild.id, "voice_notice_channel_id")
             channel = member.guild.get_channel(int(channel_id)) if channel_id else None
             if channel:
@@ -111,7 +147,9 @@ class VoiceCog(commands.Cog):
                 except Exception:
                     pass
         elif before.channel is not None and after.channel is None:
-            started = self.joined_at.pop(key, None)
+            session = storage.finish_voice_session(member.guild.id, member.id)
+            started = session["started_at"] if session else self.joined_at.pop(key, None)
+            self.joined_at.pop(key, None)
             if started:
                 storage.add_voice_seconds(member.guild.id, member.id, time.time() - started)
             channel_id = storage.get_setting(member.guild.id, "voice_notice_channel_id")
@@ -122,10 +160,13 @@ class VoiceCog(commands.Cog):
                 except Exception:
                     pass
         elif before.channel != after.channel and after.channel is not None:
-            started = self.joined_at.get(key)
+            session = storage.finish_voice_session(member.guild.id, member.id)
+            started = session["started_at"] if session else self.joined_at.get(key)
             if started:
                 storage.add_voice_seconds(member.guild.id, member.id, time.time() - started)
-            self.joined_at[key] = time.time()
+            started_at = time.time()
+            self.joined_at[key] = started_at
+            storage.start_voice_session(member.guild.id, member.id, after.channel.id, started_at)
 
         for ch in [before.channel, after.channel]:
             if ch and ch.id in self.temp_channels and len(ch.members) == 0:
