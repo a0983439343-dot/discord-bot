@@ -4,7 +4,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-DB_PATH = Path("data") / "bot.sqlite3"
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "data" / "bot.sqlite3"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 def connect():
@@ -102,6 +103,16 @@ def init_db():
             giveaway_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             PRIMARY KEY(giveaway_id, user_id)
+        );
+        CREATE TABLE IF NOT EXISTS giveaway_winners (
+            giveaway_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            round_no INTEGER NOT NULL,
+            PRIMARY KEY(giveaway_id, user_id, round_no)
+        );
+        CREATE TABLE IF NOT EXISTS temp_channels (
+            guild_id INTEGER NOT NULL,
+            channel_id INTEGER PRIMARY KEY
         );
         CREATE TABLE IF NOT EXISTS notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,14 +218,15 @@ def cancel_reminder(guild_id, user_id, reminder_id):
 def due_reminders(now=None):
     now = now or time.time()
     with connect() as con:
-        rows = con.execute(
+        return con.execute(
             "SELECT * FROM reminders WHERE done=0 AND due_at<=? ORDER BY due_at",
             (now,),
         ).fetchall()
-        if rows:
-            ids = [row["id"] for row in rows]
-            con.executemany("UPDATE reminders SET done=1 WHERE id=?", [(x,) for x in ids])
-        return rows
+
+
+def complete_reminder(reminder_id: int):
+    with connect() as con:
+        con.execute("UPDATE reminders SET done=1 WHERE id=? AND done=0", (reminder_id,))
 
 def ensure_profile(guild_id, user_id):
     with connect() as con:
@@ -248,9 +260,10 @@ def add_message_xp(guild_id, user_id, amount=8, cooldown=45):
             while xp >= new_level * 500:
                 xp -= new_level * 500
                 new_level += 1
+        last_xp_at = now if gained else row["last_xp_at"]
         con.execute(
             "UPDATE profiles SET xp=?, level=?, msg_count=?, last_xp_at=? WHERE guild_id=? AND user_id=?",
-            (xp, new_level, msg_count, now, guild_id, user_id),
+            (xp, new_level, msg_count, last_xp_at, guild_id, user_id),
         )
         return {"xp_gained": gained, "xp": xp, "level": new_level, "old_level": level, "msg_count": msg_count}
 
@@ -338,6 +351,13 @@ def close_poll(poll_id):
     with connect() as con:
         con.execute("UPDATE polls SET closed=1 WHERE id=?", (poll_id,))
 
+
+def delete_poll(poll_id):
+    with connect() as con:
+        con.execute("DELETE FROM poll_votes WHERE poll_id=?", (poll_id,))
+        con.execute("DELETE FROM polls WHERE id=?", (poll_id,))
+
+
 def set_poll_vote(poll_id, user_id, option_index, multiple=False):
     with connect() as con:
         if not multiple:
@@ -386,6 +406,41 @@ def end_giveaway(giveaway_id):
     with connect() as con:
         con.execute("UPDATE giveaways SET ended=1 WHERE id=?", (giveaway_id,))
 
+
+def delete_giveaway(giveaway_id):
+    with connect() as con:
+        con.execute("DELETE FROM giveaway_winners WHERE giveaway_id=?", (giveaway_id,))
+        con.execute("DELETE FROM giveaway_entries WHERE giveaway_id=?", (giveaway_id,))
+        con.execute("DELETE FROM giveaways WHERE id=?", (giveaway_id,))
+
+
+def record_giveaway_winners(giveaway_id, user_ids):
+    clean = sorted(set(int(x) for x in user_ids))
+    if not clean:
+        return
+    with connect() as con:
+        row = con.execute(
+            "SELECT COALESCE(MAX(round_no), 0) AS n FROM giveaway_winners WHERE giveaway_id=?",
+            (giveaway_id,),
+        ).fetchone()
+        round_no = int(row["n"]) + 1
+        con.executemany(
+            "INSERT OR IGNORE INTO giveaway_winners(giveaway_id,user_id,round_no) VALUES(?,?,?)",
+            [(giveaway_id, uid, round_no) for uid in clean],
+        )
+
+
+def get_giveaway_previous_winners(giveaway_id):
+    with connect() as con:
+        return {
+            row["user_id"]
+            for row in con.execute(
+                "SELECT DISTINCT user_id FROM giveaway_winners WHERE giveaway_id=?",
+                (giveaway_id,),
+            ).fetchall()
+        }
+
+
 def enter_giveaway(giveaway_id, user_id):
     with connect() as con:
         con.execute(
@@ -429,3 +484,27 @@ def delete_note(guild_id, user_id, note_id):
             (guild_id, user_id, note_id),
         )
         return cur.rowcount > 0
+
+
+
+def add_temp_channel(guild_id, channel_id):
+    with connect() as con:
+        con.execute(
+            "INSERT OR IGNORE INTO temp_channels(guild_id,channel_id) VALUES(?,?)",
+            (guild_id, channel_id),
+        )
+
+
+def remove_temp_channel(channel_id):
+    with connect() as con:
+        con.execute("DELETE FROM temp_channels WHERE channel_id=?", (channel_id,))
+
+
+def list_temp_channels(guild_id=None):
+    with connect() as con:
+        if guild_id is None:
+            return con.execute("SELECT * FROM temp_channels ORDER BY channel_id").fetchall()
+        return con.execute(
+            "SELECT * FROM temp_channels WHERE guild_id=? ORDER BY channel_id",
+            (guild_id,),
+        ).fetchall()
