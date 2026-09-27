@@ -45,7 +45,7 @@ class GiveawayCog(commands.Cog):
             return
         for row in storage.list_active_giveaways():
             guild = self.bot.get_guild(row["guild_id"])
-            if not guild or not row["message_id"]:
+            if not guild or not self.bot.is_allowed_guild(guild.id) or not row["message_id"]:
                 continue
             try:
                 self.bot.add_view(
