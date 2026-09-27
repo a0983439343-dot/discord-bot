@@ -86,26 +86,42 @@ class UtilityCog(commands.Cog):
     @app_commands.command(name="timer", description="跑一個到時間會通知的倒數")
     @app_commands.describe(duration="例如 30s、5m、1h")
     async def timer(self, interaction: discord.Interaction, duration: str):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用喔。", ephemeral=True)
+            return
         seconds = parse_duration(duration)
         if seconds is None:
             await interaction.response.send_message("時間格式用 30s、5m、1h 這種就行。", ephemeral=True)
             return
-        await interaction.response.send_message(f"開始啦，{duration} 後提醒你。⏳")
-        await asyncio.sleep(seconds)
-        try:
-            await interaction.followup.send(f"⏰ {interaction.user.mention} 時間到啦！")
-        except Exception:
-            pass
+        rid = storage.add_reminder(
+            interaction.guild.id,
+            interaction.user.id,
+            interaction.channel.id,
+            "⏰ 時間到啦！",
+            datetime.now(timezone.utc).timestamp() + seconds,
+        )
+        await interaction.response.send_message(
+            f"開始啦，{duration} 後提醒你。⏳\n提醒編號：{rid}",
+            ephemeral=True,
+        )
 
     @app_commands.command(name="countdown", description="建立一個短倒數")
     @app_commands.describe(seconds="倒數秒數，1 到 3600")
     async def countdown(self, interaction: discord.Interaction, seconds: app_commands.Range[int, 1, 3600]):
-        await interaction.response.send_message(f"倒數 {seconds} 秒，開始。")
-        await asyncio.sleep(seconds)
-        try:
-            await interaction.followup.send(f"⏰ {interaction.user.mention} 好了，時間到。")
-        except Exception:
-            pass
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用喔。", ephemeral=True)
+            return
+        rid = storage.add_reminder(
+            interaction.guild.id,
+            interaction.user.id,
+            interaction.channel.id,
+            "⏰ 好了，時間到。",
+            datetime.now(timezone.utc).timestamp() + seconds,
+        )
+        await interaction.response.send_message(
+            f"倒數 {seconds} 秒，開始。\n提醒編號：{rid}",
+            ephemeral=True,
+        )
 
     @app_commands.command(name="calc", description="算數學，直接輸入一般算式")
     @app_commands.describe(expression="例如 123*45+6")
