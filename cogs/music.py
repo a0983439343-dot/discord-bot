@@ -84,12 +84,20 @@ class MusicControlView(ui.View):
         if not player or not player.voice:
             await interaction.response.send_message("目前沒有正在播的東西。", ephemeral=True)
             return
-        if player.voice.is_playing():
-            player.voice.pause()
-            await interaction.response.send_message("先暫停一下。", ephemeral=True)
-        elif player.voice.is_paused():
-            player.voice.resume()
-            await interaction.response.send_message("繼續播。", ephemeral=True)
+        async with self.cog.lock_for(self.guild_id):
+            player = self.cog.players.get(self.guild_id)
+            if not player or not player.voice:
+                await interaction.response.send_message("目前沒有正在播的東西。", ephemeral=True)
+                return
+            if player.voice.is_playing():
+                player.voice.pause()
+                reply = "先暫停一下。"
+            elif player.voice.is_paused():
+                player.voice.resume()
+                reply = "繼續播。"
+            else:
+                reply = "目前沒有正在播的東西。"
+        await interaction.response.send_message(reply, ephemeral=True)
         else:
             await interaction.response.send_message("目前沒有正在播的東西。", ephemeral=True)
 
@@ -97,8 +105,13 @@ class MusicControlView(ui.View):
     async def skip(self, interaction: discord.Interaction, button: ui.Button):
         player = self.cog.players.get(self.guild_id)
         if player and player.voice and (player.voice.is_playing() or player.voice.is_paused()):
-            player.skip_current = True
-            player.voice.stop()
+            async with self.cog.lock_for(self.guild_id):
+                player = self.cog.players.get(self.guild_id)
+                if not player or not player.voice:
+                    await interaction.response.send_message("現在沒在播歌。", ephemeral=True)
+                    return
+                player.skip_current = True
+                player.voice.stop()
             await interaction.response.send_message("跳下一首。", ephemeral=True)
         else:
             await interaction.response.send_message("現在沒在播歌。", ephemeral=True)
@@ -108,7 +121,12 @@ class MusicControlView(ui.View):
         player = self.cog.players.get(self.guild_id)
         if player and len(player.queue) > 1:
             import random
-            random.shuffle(player.queue)
+            async with self.cog.lock_for(self.guild_id):
+                player = self.cog.players.get(self.guild_id)
+                if not player:
+                    await interaction.response.send_message("現在沒有音樂工作階段。", ephemeral=True)
+                    return
+                random.shuffle(player.queue)
             await interaction.response.send_message("佇列打亂了。", ephemeral=True)
         else:
             await interaction.response.send_message("佇列裡沒幾首歌可以打亂。", ephemeral=True)
@@ -119,9 +137,15 @@ class MusicControlView(ui.View):
         if not player:
             await interaction.response.send_message("現在沒有音樂工作階段。", ephemeral=True)
             return
-        player.loop_mode = {"off":"one", "one":"all", "all":"off"}[player.loop_mode]
-        labels = {"off":"關閉", "one":"單曲", "all":"整個佇列"}
-        await interaction.response.send_message(f"循環：**{labels[player.loop_mode]}**。", ephemeral=True)
+        async with self.cog.lock_for(self.guild_id):
+            player = self.cog.players.get(self.guild_id)
+            if not player:
+                await interaction.response.send_message("現在沒有音樂工作階段。", ephemeral=True)
+                return
+            player.loop_mode = {"off":"one", "one":"all", "all":"off"}[player.loop_mode]
+            labels = {"off":"關閉", "one":"單曲", "all":"整個佇列"}
+            mode = player.loop_mode
+        await interaction.response.send_message(f"循環：**{labels[mode]}**。", ephemeral=True)
 
     @ui.button(label="⏹️ 停止", style=discord.ButtonStyle.danger)
     async def stop(self, interaction: discord.Interaction, button: ui.Button):
