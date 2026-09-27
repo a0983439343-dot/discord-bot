@@ -53,6 +53,7 @@ class RolePanelView(ui.View):
                 )
 
                 async def select_callback(interaction: discord.Interaction):
+                    await interaction.response.defer(ephemeral=True)
                     member = interaction.guild.get_member(interaction.user.id)
                     bot_member = interaction.guild.me
                     if not member or not bot_member:
@@ -77,7 +78,7 @@ class RolePanelView(ui.View):
                         except discord.Forbidden:
                             changes.append(f"{target.name} 改不了")
 
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         "、".join(changes) + "。" if changes else "這次沒有可變更的身分組。",
                         ephemeral=True,
                     )
@@ -94,6 +95,7 @@ class RolePanelView(ui.View):
                 )
 
                 async def button_callback(interaction: discord.Interaction, role_id=role.id):
+                    await interaction.response.defer(ephemeral=True)
                     member = interaction.guild.get_member(interaction.user.id)
                     target = interaction.guild.get_role(role_id)
                     bot_member = interaction.guild.me
@@ -106,12 +108,12 @@ class RolePanelView(ui.View):
                     try:
                         if target in member.roles:
                             await member.remove_roles(target, reason="自助身分組面板")
-                            await interaction.response.send_message(f"好，{target.mention} 幫你拿掉了。", ephemeral=True)
+                            await interaction.followup.send(f"好，{target.mention} 幫你拿掉了。", ephemeral=True)
                         else:
                             await member.add_roles(target, reason="自助身分組面板")
-                            await interaction.response.send_message(f"好了，{target.mention} 給你。", ephemeral=True)
+                            await interaction.followup.send(f"好了，{target.mention} 給你。", ephemeral=True)
                     except discord.Forbidden:
-                        await interaction.response.send_message("Discord 不讓我改這個身分組，檢查一下 Bot 身分組位置。", ephemeral=True)
+                        await interaction.followup.send("Discord 不讓我改這個身分組，檢查一下 Bot 身分組位置。", ephemeral=True)
 
                 button.callback = button_callback
                 self.add_item(button)
@@ -165,7 +167,7 @@ class AutoReplyCog(commands.Cog):
             channel = f"<#{r['channel_id']}>" if r["channel_id"] else "所有頻道"
             state = "開著" if r["enabled"] else "關掉"
             lines.append(f"{r['id']}｜{r['trigger']} → {r['response'][:60]}｜{channel}｜{state}")
-        await interaction.response.send_message("\n".join(lines), ephemeral=True)
+        await interaction.response.send_message("\n".join(lines[:12]), ephemeral=True)
 
     @autoreply.command(name="edit", description="修改既有自動回覆")
     @app_commands.describe(rule_id="編號", trigger="新的觸發文字", response="新的回覆", exact="新的匹配方式")
@@ -173,6 +175,16 @@ class AutoReplyCog(commands.Cog):
         if not self.admin(interaction):
             await interaction.response.send_message("這個設定只有管理人員可以改。", ephemeral=True)
             return
+        if trigger is not None and (not trigger.strip() or len(trigger) > 100):
+            await interaction.response.send_message("觸發文字最多 100 字，而且不能空白。", ephemeral=True)
+            return
+        if response is not None and len(response) > 1500:
+            await interaction.response.send_message("回覆最多 1500 字。", ephemeral=True)
+            return
+        if trigger is not None:
+            trigger = trigger.strip()
+        if response is not None:
+            response = response.strip()
         mode = "exact" if exact else "contains" if exact is not None else None
         ok = storage.update_autoreply(interaction.guild.id, rule_id, trigger, response, mode)
         await interaction.response.send_message("改好了。" if ok else "找不到這個編號。", ephemeral=True)
@@ -199,6 +211,8 @@ class AutoReplyCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot or not message.content.strip():
+            return
+        if not self.bot.is_allowed_guild(message.guild.id):
             return
         rules = storage.find_autoreplies(message.guild.id, message.content, message.channel.id)
         if not rules:
@@ -257,6 +271,9 @@ class RolePanelCog(commands.Cog):
         if not self.admin(interaction):
             await interaction.response.send_message("要管理身分組的人才能建立這個。", ephemeral=True)
             return
+        if not interaction.guild.me.guild_permissions.manage_roles:
+            await interaction.response.send_message("我自己沒有管理身分組權限。", ephemeral=True)
+            return
         role_ids = parse_role_ids(roles)
         if not role_ids or len(role_ids) > 25:
             await interaction.response.send_message("請丟 1～25 個身分組 ID 或 @身分組給我。", ephemeral=True)
@@ -271,8 +288,11 @@ class RolePanelCog(commands.Cog):
             await interaction.response.send_message("有身分組比我的最高身分組還高，先把 Bot 身分組往上移。", ephemeral=True)
             return
 
+        if not title.strip() or len(title) > 256 or not description.strip() or len(description) > 4000:
+            await interaction.response.send_message("標題不能空白（最多 256 字），說明最多 4000 字。", ephemeral=True)
+            return
         panel_id = storage.save_role_panel(
-            interaction.guild.id, interaction.channel.id, 0, title[:256], description[:4000],
+            interaction.guild.id, interaction.channel.id, 0, title.strip(), description.strip()[:4000],
             mode.value, [r.id for r in real_roles]
         )
         row = next(r for r in storage.get_role_panels(interaction.guild.id) if r["id"] == panel_id)
@@ -283,7 +303,8 @@ class RolePanelCog(commands.Cog):
         else:
             embed.add_field(name="怎麼用", value="可以一次選好幾個，送出後就會套用；再選一次也能取消。", inline=False)
         try:
-            await interaction.response.send_message(embed=embed, view=view)
+            await interaction.response.defer()
+            await interaction.followup.send(embed=embed, view=view)
             msg = await interaction.original_response()
             with storage.connect() as con:
                 con.execute("UPDATE role_panels SET message_id=? WHERE id=?", (msg.id, panel_id))
@@ -301,7 +322,7 @@ class RolePanelCog(commands.Cog):
         if not rows:
             await interaction.response.send_message("目前沒有身分組面板。", ephemeral=True)
             return
-        await interaction.response.send_message("\n".join(f"{r['id']}｜{r['title']}｜{r['mode']}｜<#{r['channel_id']}>" for r in rows), ephemeral=True)
+        await interaction.response.send_message("\n".join(f"{r['id']}｜{r['title'][:60]}｜{r['mode']}｜<#{r['channel_id']}>" for r in rows[:15]), ephemeral=True)
 
     @rolepanel.command(name="delete", description="刪掉一個身分組面板紀錄")
     @app_commands.describe(panel_id="面板編號")
@@ -337,13 +358,14 @@ class PollView(ui.View):
             custom_id=f"poll:{poll_id}",
         )
         async def callback(interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
             row = storage.get_poll(self.poll_id)
             if not row or row["closed"]:
-                await interaction.response.send_message("這個投票已經關了。", ephemeral=True)
+                await interaction.followup.send("這個投票已經關了。", ephemeral=True)
                 return
             if row["ends_at"] and row["ends_at"] <= time.time():
                 storage.close_poll(self.poll_id)
-                await interaction.response.send_message("時間到了，這票已經結束。", ephemeral=True)
+                await interaction.followup.send("時間到了，這票已經結束。", ephemeral=True)
                 return
             indexes = [int(v) for v in select.values]
             storage.replace_poll_votes(self.poll_id, interaction.user.id, indexes)
@@ -353,7 +375,7 @@ class PollView(ui.View):
                 await interaction.message.edit(embed=embed, view=self)
             except Exception:
                 pass
-            await interaction.response.send_message("收到，你的票記好了。", ephemeral=True)
+            await interaction.followup.send("收到，你的票記好了。", ephemeral=True)
         select.callback = callback
         self.add_item(select)
 
@@ -393,7 +415,7 @@ class PollCog(commands.Cog):
             pct = (n / total * 100) if total else 0
             lines.append(f"**{i+1}. {option}** — {n} 票（{pct:.0f}%）")
         embed = discord.Embed(title="🗳️ " + row["question"], description="\n".join(lines), color=0x5865F2)
-        embed.set_footer(text=f"共 {total} 票" + (" · 可複選" if row["multiple"] else ""))
+        embed.set_footer(text=(f"共 {total} 份選擇" if row["multiple"] else f"共 {total} 票"))
         return embed
 
     @poll.command(name="create", description="建立一個下拉選單投票")
@@ -402,21 +424,29 @@ class PollCog(commands.Cog):
         if not interaction.guild:
             await interaction.response.send_message("這個要在伺服器裡用喔。", ephemeral=True)
             return
+        if not question.strip() or len(question) > 250:
+            await interaction.response.send_message("投票問題不能空白，最多 250 字。", ephemeral=True)
+            return
         items = [x.strip() for x in options.split(",") if x.strip()]
         if not (2 <= len(items) <= 10) or any(len(x) > 100 for x in items):
             await interaction.response.send_message("選項請放 2～10 個，中間用逗號隔開。", ephemeral=True)
             return
         import time
         ends_at = time.time() + minutes * 60 if minutes else None
-        poll_id = storage.save_poll(interaction.guild.id, interaction.channel.id, 0, question[:250], items, anonymous, multiple, ends_at)
+        poll_id = storage.save_poll(interaction.guild.id, interaction.channel.id, 0, question.strip(), items, anonymous, multiple, ends_at)
         row = storage.get_poll(poll_id)
         view = PollView(poll_id, items, multiple)
         embed = PollCog.build_embed(row, {})
         embed.set_footer(text=("可複選" if multiple else "單選") + (f" · <t:{int(ends_at)}:R>" if ends_at else " · 不限時間"))
-        await interaction.response.send_message(embed=embed, view=view)
-        msg = await interaction.original_response()
-        with storage.connect() as con:
-            con.execute("UPDATE polls SET message_id=? WHERE id=?", (msg.id, poll_id))
+        try:
+            await interaction.response.defer()
+            await interaction.followup.send(embed=embed, view=view)
+            msg = await interaction.original_response()
+            with storage.connect() as con:
+                con.execute("UPDATE polls SET message_id=? WHERE id=?", (msg.id, poll_id))
+        except Exception:
+            storage.delete_poll(poll_id)
+            raise
         await interaction.followup.send(f"投票開好了，編號 {poll_id}。", ephemeral=True)
 
     @poll.command(name="end", description="提前結束一個投票")
@@ -429,6 +459,7 @@ class PollCog(commands.Cog):
         if not row or row["guild_id"] != interaction.guild.id:
             await interaction.response.send_message("找不到這個投票。", ephemeral=True)
             return
+        await interaction.response.defer(ephemeral=True)
         storage.close_poll(poll_id)
         counts = storage.get_poll_counts(poll_id)
         ch = interaction.guild.get_channel(row["channel_id"])
@@ -438,7 +469,7 @@ class PollCog(commands.Cog):
                 await msg.edit(embed=PollCog.build_embed(row, counts), view=None)
             except Exception:
                 pass
-        await interaction.response.send_message("投票關掉了。", ephemeral=True)
+        await interaction.followup.send("投票關掉了。", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
