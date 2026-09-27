@@ -1,6 +1,7 @@
 import io
 import os
 import urllib.parse
+import time
 
 import aiohttp
 import discord
@@ -17,6 +18,36 @@ class SearchCog(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.ai_cooldowns = {}
+        self.ai_cooldown_seconds = 8
+
+    async def _check_ai_limit(self, interaction):
+        key = (interaction.guild.id if interaction.guild else 0, interaction.user.id)
+        now = time.monotonic()
+        last = self.ai_cooldowns.get(key, 0)
+        remaining = self.ai_cooldown_seconds - (now - last)
+        if remaining > 0:
+            await interaction.response.send_message(
+                f"先等等 {remaining:.1f} 秒，再問我下一題。",
+                ephemeral=True,
+            )
+            return False
+        self.ai_cooldowns[key] = now
+        return True
+
+    async def _send_ai_output(self, interaction, answer: str, filename: str, empty_message: str):
+        answer = (answer or "").strip()
+        if not answer:
+            await interaction.followup.send(empty_message)
+            return
+        if len(answer) <= 1900:
+            await interaction.followup.send(answer)
+            return
+        data = io.BytesIO(answer.encode("utf-8"))
+        await interaction.followup.send(
+            "這次內容有點長，我改成文字檔給你，直接打開就能看。",
+            file=discord.File(data, filename=filename),
+        )
 
     @search.command(name="youtube", description="搜尋 YouTube 並列出幾個結果")
     @app_commands.describe(query="關鍵字")
@@ -139,6 +170,8 @@ class SearchCog(commands.Cog):
     @ai.command(name="ask", description="問 AI 一件事，需要設定 OPENAI_API_KEY")
     @app_commands.describe(prompt="想問的內容")
     async def ask(self, interaction, prompt: str):
+        if not await self._check_ai_limit(interaction):
+            return
         key = os.getenv("OPENAI_API_KEY")
         if not key:
             await interaction.response.send_message("AI 還沒設定 API Key，所以先沒開。", ephemeral=True)
@@ -169,14 +202,16 @@ class SearchCog(commands.Cog):
                 for part in item.get("content", []):
                     if isinstance(part, dict) and part.get("type") in {"output_text","text"}:
                         output.append(part.get("text",""))
-            answer = "\n".join(output).strip()[:3900]
-            await interaction.followup.send(answer or "我剛剛沒拿到答案，再問一次。")
+            answer = "\n".join(output).strip()
+            await self._send_ai_output(interaction, answer, "ai-answer.txt", "我剛剛沒拿到答案，再問一次。")
         except Exception:
             await interaction.followup.send("AI 這次沒回來，再試一次。")
 
     @ai.command(name="translate", description="讓 AI 幫你翻譯並順一下語氣")
     @app_commands.describe(text="原文", target="目標語言")
     async def ai_translate(self, interaction, text: str, target: str = "繁體中文"):
+        if not await self._check_ai_limit(interaction):
+            return
         await interaction.response.defer()
         key = os.getenv("OPENAI_API_KEY")
         if not key:
@@ -195,13 +230,15 @@ class SearchCog(commands.Cog):
                 async with session.post("https://api.openai.com/v1/responses", headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"}, json=payload, timeout=45) as resp:
                     data = await resp.json(content_type=None)
             answer = "\n".join(part.get("text","") for item in data.get("output",[]) for part in item.get("content",[]) if isinstance(part,dict) and part.get("text"))
-            await interaction.followup.send(answer[:3900] or "沒翻出結果。")
+            await self._send_ai_output(interaction, answer, "ai-translate.txt", "沒翻出結果。")
         except Exception:
             await interaction.followup.send("AI 翻譯這次沒回來。")
 
     @ai.command(name="summarize", description="幫你把一段長文字濃縮一下")
     @app_commands.describe(text="要整理的內容")
     async def summarize(self, interaction, text: str):
+        if not await self._check_ai_limit(interaction):
+            return
         await interaction.response.defer()
         key = os.getenv("OPENAI_API_KEY")
         if not key:
@@ -217,7 +254,7 @@ class SearchCog(commands.Cog):
                 async with session.post("https://api.openai.com/v1/responses", headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"}, json=payload, timeout=45) as resp:
                     data = await resp.json(content_type=None)
             answer = "\n".join(part.get("text","") for item in data.get("output",[]) for part in item.get("content",[]) if isinstance(part,dict) and part.get("text"))
-            await interaction.followup.send(answer[:3900] or "這次沒整理出結果。")
+            await self._send_ai_output(interaction, answer, "ai-summary.txt", "這次沒整理出結果。")
         except Exception:
             await interaction.followup.send("AI 整理這次沒回來。")
 
