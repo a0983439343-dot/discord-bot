@@ -64,8 +64,6 @@ class VoiceCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if not self.bot.is_allowed_guild(getattr(self.bot.guilds[0], "id", 0)) if self.bot.guilds else True:
-            pass
         self.temp_channels = {
             row["channel_id"]
             for row in storage.list_temp_channels()
