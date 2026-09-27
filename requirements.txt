@@ -4,3 +4,4 @@ PyNaCl
 aiohttp
 qrcode[pil]
 Pillow
+tzdata>=2024.1,<2027
