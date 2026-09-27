@@ -132,7 +132,7 @@ async def run_spam(job_key: tuple[int, int], notify_channel, target_channels: li
                 if ch.id in failed_channels:
                     continue
                 while True:
-                    if not active_spam.get(user_id, {}).get("running", False):
+                    if not active_spam.get(job_key, {}).get("running", False):
                         await notify(f"好，停掉了。剛剛大概送了 {sent_count} 則。")
                         return
                     try:
@@ -200,7 +200,7 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
 
     guild_me = interaction.guild.get_member(bot.user.id)
     if not guild_me:
-        active_spam.pop(interaction.user.id, None)
+        active_spam.pop(job_key, None)
         await interaction.followup.send("我找不到自己的成員資料，重試一下。", ephemeral=True)
         return
 
@@ -223,7 +223,7 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
         await interaction.followup.send("選的頻道我都沒有足夠權限。", ephemeral=True)
         return
 
-    active_spam[interaction.user.id] = {"running": True, "task": None}
+    active_spam[job_key] = {"running": True, "task": None}
     embed = discord.Embed(
         title="好，開始了",
         description=f"次數：{count}\n頻道：{', '.join(c.mention for c in valid_channels)}",
