@@ -1,0 +1,30 @@
+name: Export completed project
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Create project zip
+        run: |
+          rm -f Discord-Bot-Project-Completed.zip
+          zip -r Discord-Bot-Project-Completed.zip . \
+            -x ".git/*" \
+            -x "data/*" \
+            -x "Discord-Bot-Project-Completed.zip" \
+            -x ".github/workflows/export-project.yml"
+      - name: Upload zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Discord-Bot-Project-Completed
+          path: Discord-Bot-Project-Completed.zip
+          if-no-files-found: error
