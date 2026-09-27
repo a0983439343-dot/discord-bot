@@ -203,6 +203,11 @@ class ModerationCog(commands.Cog):
                 "Discord AutoMod 這次沒設定成功；目前保留原本的後備防護設定。",
                 ephemeral=True,
             )
+        except Exception:
+            await interaction.followup.send(
+                "這次安全設定沒成功，原本的後備防護設定先保留。",
+                ephemeral=True,
+            )
 
     @security.command(name="antispam", description="開關短時間訊息刷屏防護")
     @app_commands.describe(enabled="是否開啟", limit="幾則訊息算刷屏")
