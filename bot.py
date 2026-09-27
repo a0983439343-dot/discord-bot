@@ -219,7 +219,7 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
             skipped.append(str(selected.id))
 
     if not valid_channels:
-        active_spam.pop(interaction.user.id, None)
+        active_spam.pop(job_key, None)
         await interaction.followup.send("選的頻道我都沒有足夠權限。", ephemeral=True)
         return
 
