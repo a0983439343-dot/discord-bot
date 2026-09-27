@@ -97,6 +97,13 @@ class Bot(commands.Bot):
 
     async def on_ready(self):
         print(f"Logged in as {self.user} ({self.user.id})")
+        for guild in list(self.guilds):
+            if not self.is_allowed_guild(guild.id):
+                try:
+                    await guild.leave()
+                    print(f"Left non-whitelisted guild {guild.id}")
+                except Exception:
+                    traceback.print_exc()
         if not reminder_worker.is_running():
             reminder_worker.start()
 
