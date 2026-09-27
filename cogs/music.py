@@ -98,8 +98,6 @@ class MusicControlView(ui.View):
             else:
                 reply = "目前沒有正在播的東西。"
         await interaction.response.send_message(reply, ephemeral=True)
-        else:
-            await interaction.response.send_message("目前沒有正在播的東西。", ephemeral=True)
 
     @ui.button(label="⏭️ 下一首", style=discord.ButtonStyle.secondary)
     async def skip(self, interaction: discord.Interaction, button: ui.Button):
