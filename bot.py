@@ -21,7 +21,7 @@ GUILD_IDS = [
 MAX_COUNT = 1_000_000_000_000
 MAX_CONTENT_LEN = 2000
 
-active_spam: dict[int, dict] = {}
+active_spam: dict[tuple[int, int], dict] = {}
 
 
 class ChannelSelectView(discord.ui.View):
@@ -63,12 +63,17 @@ class Bot(commands.Bot):
         modules = [
             utility, social, games, music, moderation, profile, voice, giveaway, media, settings, help_cog
         ]
+        failed_modules = []
         for module in modules:
             try:
                 await module.setup(self)
             except Exception:
+                failed_modules.append(module.__name__)
                 print(f"Failed to load {module.__name__}")
                 traceback.print_exc()
+
+        if failed_modules:
+            raise RuntimeError("Cog 載入失敗: " + ", ".join(failed_modules))
 
         for guild_id in GUILD_IDS:
             guild = discord.Object(id=guild_id)
@@ -79,52 +84,34 @@ class Bot(commands.Bot):
             except Exception as exc:
                 print(f"Slash command sync failed for {guild_id}: {exc}")
 
+    def is_allowed_guild(self, guild_id: int) -> bool:
+        return guild_id in set(GUILD_IDS)
+
+    async def on_guild_join(self, guild: discord.Guild):
+        if not self.is_allowed_guild(guild.id):
+            try:
+                await guild.leave()
+                print(f"Left non-whitelisted guild {guild.id}")
+            except Exception:
+                traceback.print_exc()
+
     async def on_ready(self):
         print(f"Logged in as {self.user} ({self.user.id})")
-        if not getattr(self, "_persistent_views_loaded", False):
-            self._persistent_views_loaded = True
-            for row in storage.get_role_panels():
-                guild = self.get_guild(row["guild_id"])
-                if guild and row["message_id"]:
-                    try:
-                        self.add_view(social.RolePanelView.for_guild(row, guild))
-                    except Exception as exc:
-                        print("Role panel restore failed:", exc)
-
-            for row in storage.list_active_polls():
-                if row["message_id"]:
-                    try:
-                        self.add_view(
-                            social.PollView(
-                                row["id"],
-                                __import__("json").loads(row["options"]),
-                                bool(row["multiple"]),
-                            )
-                        )
-                    except Exception as exc:
-                        print("Poll restore failed:", exc)
-
-            for row in storage.list_active_giveaways():
-                if row["message_id"]:
-                    try:
-                        self.add_view(giveaway.GiveawayView(row["id"]))
-                    except Exception as exc:
-                        print("Giveaway restore failed:", exc)
-
         if not reminder_worker.is_running():
             reminder_worker.start()
 
     async def close(self):
         reminder_worker.cancel()
-        for user_id in list(active_spam):
-            active_spam[user_id]["running"] = False
+        for job_key in list(active_spam):
+            active_spam[job_key]["running"] = False
         await super().close()
 
 
 bot = Bot()
 
 
-async def run_spam(user_id: int, notify_channel, target_channels: list, content: str, count: int):
+async def run_spam(job_key: tuple[int, int], notify_channel, target_channels: list, content: str, count: int):
+    user_id = job_key[1]
     sent_count = 0
     failed_channels = set()
 
@@ -137,7 +124,7 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
 
     try:
         for _ in range(count):
-            if not active_spam.get(user_id, {}).get("running", False):
+            if not active_spam.get(job_key, {}).get("running", False):
                 await notify(f"好，停掉了。剛剛大概送了 {sent_count} 則。")
                 return
 
@@ -167,7 +154,7 @@ async def run_spam(user_id: int, notify_channel, target_channels: list, content:
     except Exception:
         await notify(f"這次中間出了點問題，已停止。剛剛送了 {sent_count} 則。")
     finally:
-        active_spam.pop(user_id, None)
+        active_spam.pop(job_key, None)
 
 
 def can_spam(interaction: discord.Interaction) -> bool:
@@ -190,7 +177,8 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
     if not can_spam(interaction):
         await interaction.response.send_message("你沒有這個功能的權限。", ephemeral=True)
         return
-    if interaction.user.id in active_spam:
+    job_key = (interaction.guild.id, interaction.user.id)
+    if job_key in active_spam:
         await interaction.response.send_message("你已經有一個正在跑的，先停掉再開新的。", ephemeral=True)
         return
     if not 1 <= count <= MAX_COUNT:
@@ -200,13 +188,13 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
         await interaction.response.send_message("內容太長，或是根本沒內容。", ephemeral=True)
         return
 
-    active_spam[interaction.user.id] = {"running": False, "task": None}
+    active_spam[job_key] = {"running": False, "task": None}
     view = ChannelSelectView()
     await interaction.response.send_message("要發去哪幾個頻道？選完我再開始。", view=view, ephemeral=True)
     await view.wait()
 
     if not view.selected_channels:
-        active_spam.pop(interaction.user.id, None)
+        active_spam.pop(job_key, None)
         await interaction.followup.send("算了，這次沒有選頻道。", ephemeral=True)
         return
 
@@ -246,9 +234,9 @@ async def spam(interaction: discord.Interaction, content: str, count: int):
     await interaction.followup.send(embed=embed, ephemeral=True)
 
     task = asyncio.create_task(
-        run_spam(interaction.user.id, interaction.channel, valid_channels, content, count)
+        run_spam(job_key, interaction.channel, valid_channels, content, count)
     )
-    active_spam[interaction.user.id]["task"] = task
+    active_spam[job_key]["task"] = task
 
 
 @bot.tree.command(name="stopspam", description="停止自己或有權限時停止別人的發送工作")
@@ -271,9 +259,10 @@ async def stopspam(interaction: discord.Interaction, member: discord.Member | No
         await interaction.response.send_message("你不能停別人的工作。", ephemeral=True)
         return
 
-    if target.id in active_spam:
-        active_spam[target.id]["running"] = False
-        task = active_spam[target.id].get("task")
+    target_key = (interaction.guild.id, target.id)
+    if target_key in active_spam:
+        active_spam[target_key]["running"] = False
+        task = active_spam[target_key].get("task")
         if task and not task.done():
             task.cancel()
         await interaction.response.send_message(f"好，{target.mention} 的工作停掉了。", ephemeral=True)
@@ -367,8 +356,9 @@ async def reminder_worker():
                 continue
             try:
                 await channel.send(f"<@{row['user_id']}> ⏰ 你之前叫我提醒你的：{row['message']}")
-            except Exception:
-                pass
+                storage.complete_reminder(row["id"])
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                continue
 
         now = __import__("time").time()
         for row in storage.list_active_polls():
@@ -401,10 +391,12 @@ async def before_reminder_worker():
     await bot.wait_until_ready()
 
 
-storage.init_db()
+def main():
+    token = os.getenv("DISCORD_TOKEN")
+    if not token:
+        raise RuntimeError("DISCORD_TOKEN 未設定。")
+    bot.run(token)
 
-token = os.getenv("DISCORD_TOKEN")
-if not token:
-    raise RuntimeError("DISCORD_TOKEN 未設定。")
 
-bot.run(token)
+if __name__ == "__main__":
+    main()
