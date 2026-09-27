@@ -1,4 +1,7 @@
+import hashlib
+import hmac
 import json
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -122,10 +125,27 @@ def init_db():
             content TEXT NOT NULL
         );
         """)
-        try:
+        columns = {row["name"] for row in con.execute("PRAGMA table_info(polls)").fetchall()}
+        if "multiple" not in columns:
             con.execute("ALTER TABLE polls ADD COLUMN multiple INTEGER NOT NULL DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass
+
+        anonymous_rows = con.execute(
+            "SELECT id FROM polls WHERE anonymous=1"
+        ).fetchall()
+        secret = os.getenv("POLL_ANON_SECRET") or os.getenv("DISCORD_TOKEN", "change-me")
+        for poll in anonymous_rows:
+            vote_rows = con.execute(
+                "SELECT poll_id, user_id, option_index FROM poll_votes WHERE poll_id=? AND user_id>0",
+                (poll["id"],),
+            ).fetchall()
+            for vote in vote_rows:
+                raw = f"{poll['id']}:{vote['user_id']}".encode()
+                digest = hmac.new(secret.encode(), raw, hashlib.sha256).digest()
+                anonymous_id = -((int.from_bytes(digest[:8], "big") & 0x7FFFFFFFFFFFFFFF) + 1)
+                con.execute(
+                    "UPDATE poll_votes SET user_id=? WHERE poll_id=? AND user_id=? AND option_index=?",
+                    (anonymous_id, vote["poll_id"], vote["user_id"], vote["option_index"]),
+                )
         
 def set_setting(guild_id: int, key: str, value: Any):
     with connect() as con:
@@ -358,24 +378,44 @@ def delete_poll(poll_id):
         con.execute("DELETE FROM polls WHERE id=?", (poll_id,))
 
 
+def poll_voter_key(poll_id, user_id, con=None):
+    close_after = False
+    if con is None:
+        con = connect()
+        close_after = True
+    try:
+        row = con.execute("SELECT anonymous FROM polls WHERE id=?", (poll_id,)).fetchone()
+        if not row or not row["anonymous"]:
+            return int(user_id)
+        secret = os.getenv("POLL_ANON_SECRET") or os.getenv("DISCORD_TOKEN", "change-me")
+        raw = f"{poll_id}:{user_id}".encode()
+        digest = hmac.new(secret.encode(), raw, hashlib.sha256).digest()
+        return -((int.from_bytes(digest[:8], "big") & 0x7FFFFFFFFFFFFFFF) + 1)
+    finally:
+        if close_after:
+            con.close()
+
+
 def set_poll_vote(poll_id, user_id, option_index, multiple=False):
     with connect() as con:
+        voter_id = poll_voter_key(poll_id, user_id, con)
         if not multiple:
-            con.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?", (poll_id, user_id))
+            con.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?", (poll_id, voter_id))
         else:
-            con.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=? AND option_index=?", (poll_id, user_id, option_index))
+            con.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=? AND option_index=?", (poll_id, voter_id, option_index))
         con.execute(
             "INSERT OR IGNORE INTO poll_votes(poll_id,user_id,option_index) VALUES(?,?,?)",
-            (poll_id, user_id, option_index),
+            (poll_id, voter_id, option_index),
         )
 
 def replace_poll_votes(poll_id, user_id, option_indexes):
     clean = sorted(set(int(x) for x in option_indexes))
     with connect() as con:
-        con.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?", (poll_id, user_id))
+        voter_id = poll_voter_key(poll_id, user_id, con)
+        con.execute("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?", (poll_id, voter_id))
         con.executemany(
             "INSERT INTO poll_votes(poll_id,user_id,option_index) VALUES(?,?,?)",
-            [(poll_id, user_id, idx) for idx in clean],
+            [(poll_id, voter_id, idx) for idx in clean],
         )
 
 def get_poll_counts(poll_id):
