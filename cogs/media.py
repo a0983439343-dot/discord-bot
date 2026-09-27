@@ -19,21 +19,30 @@ class SearchCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.ai_cooldowns = {}
+        self.ocr_cooldowns = {}
         self.ai_cooldown_seconds = 8
+        self.ocr_cooldown_seconds = 8
 
-    async def _check_ai_limit(self, interaction):
+    async def _check_cooldown(self, interaction, bucket, seconds):
         key = (interaction.guild.id if interaction.guild else 0, interaction.user.id)
         now = time.monotonic()
-        last = self.ai_cooldowns.get(key, 0)
-        remaining = self.ai_cooldown_seconds - (now - last)
+        last = bucket.get(key, 0)
+        remaining = seconds - (now - last)
         if remaining > 0:
             await interaction.response.send_message(
-                f"先等等 {remaining:.1f} 秒，再問我下一題。",
+                f"先等等 {remaining:.1f} 秒，再用一次。",
                 ephemeral=True,
             )
             return False
-        self.ai_cooldowns[key] = now
+        bucket[key] = now
         return True
+
+    async def _check_ai_limit(self, interaction):
+        return await self._check_cooldown(
+            interaction,
+            self.ai_cooldowns,
+            self.ai_cooldown_seconds,
+        )
 
     async def _send_ai_output(self, interaction, answer: str, filename: str, empty_message: str):
         answer = (answer or "").strip()
@@ -149,6 +158,8 @@ class SearchCog(commands.Cog):
         if not key:
             await interaction.response.send_message("OCR 功能還沒設定 API Key，其他圖片工具可以直接用。", ephemeral=True)
             return
+        if not await self._check_cooldown(interaction, self.ocr_cooldowns, self.ocr_cooldown_seconds):
+            return
         await interaction.response.defer()
         try:
             data = await image.read()
@@ -170,11 +181,11 @@ class SearchCog(commands.Cog):
     @ai.command(name="ask", description="問 AI 一件事，需要設定 OPENAI_API_KEY")
     @app_commands.describe(prompt="想問的內容")
     async def ask(self, interaction, prompt: str):
-        if not await self._check_ai_limit(interaction):
-            return
         key = os.getenv("OPENAI_API_KEY")
         if not key:
             await interaction.response.send_message("AI 還沒設定 API Key，所以先沒開。", ephemeral=True)
+            return
+        if not await self._check_ai_limit(interaction):
             return
         await interaction.response.defer()
         model = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
@@ -210,13 +221,13 @@ class SearchCog(commands.Cog):
     @ai.command(name="translate", description="讓 AI 幫你翻譯並順一下語氣")
     @app_commands.describe(text="原文", target="目標語言")
     async def ai_translate(self, interaction, text: str, target: str = "繁體中文"):
+        key = os.getenv("OPENAI_API_KEY")
+        if not key:
+            await interaction.response.send_message("AI 翻譯還沒設定 API Key。", ephemeral=True)
+            return
         if not await self._check_ai_limit(interaction):
             return
         await interaction.response.defer()
-        key = os.getenv("OPENAI_API_KEY")
-        if not key:
-            await interaction.followup.send("AI 翻譯還沒設定 API Key。")
-            return
         model = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
         payload = {
             "model":model,
@@ -237,13 +248,13 @@ class SearchCog(commands.Cog):
     @ai.command(name="summarize", description="幫你把一段長文字濃縮一下")
     @app_commands.describe(text="要整理的內容")
     async def summarize(self, interaction, text: str):
+        key = os.getenv("OPENAI_API_KEY")
+        if not key:
+            await interaction.response.send_message("AI 還沒設定 API Key。", ephemeral=True)
+            return
         if not await self._check_ai_limit(interaction):
             return
         await interaction.response.defer()
-        key = os.getenv("OPENAI_API_KEY")
-        if not key:
-            await interaction.followup.send("AI 還沒設定 API Key。")
-            return
         model = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
         payload = {"model":model,"input":[
             {"role":"system","content":[{"type":"input_text","text":"把內容濃縮成自然的繁體中文。抓重點，不要一直重複。"}]},
