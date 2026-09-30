@@ -24,7 +24,6 @@ from cogs import (
     media,
     settings,
     help as help_cog,
-    ai,
 )
 
 
@@ -89,7 +88,6 @@ class Bot(commands.Bot):
             media,
             settings,
             help_cog,
-            ai,
         ]
         failed_modules = []
         for module in modules:
