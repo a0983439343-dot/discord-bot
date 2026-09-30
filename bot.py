@@ -3,12 +3,29 @@ import os
 import traceback
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
 import storage
-from cogs import utility, social, games, music, moderation, profile, voice, giveaway, media, settings, help as help_cog
+from cogs import (
+    utility,
+    social,
+    games,
+    music,
+    moderation,
+    profile,
+    voice,
+    giveaway,
+    media,
+    settings,
+    help as help_cog,
+    ai,
+)
 
 
 OWNER_ID = int(os.getenv("OWNER_ID", "1140900506198351924"))
@@ -61,7 +78,18 @@ class Bot(commands.Bot):
     async def setup_hook(self):
         storage.init_db()
         modules = [
-            utility, social, games, music, moderation, profile, voice, giveaway, media, settings, help_cog
+            utility,
+            social,
+            games,
+            music,
+            moderation,
+            profile,
+            voice,
+            giveaway,
+            media,
+            settings,
+            help_cog,
+            ai,
         ]
         failed_modules = []
         for module in modules:
