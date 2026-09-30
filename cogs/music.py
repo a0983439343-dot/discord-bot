@@ -7,6 +7,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 import discord
+import imageio_ffmpeg
 import yt_dlp
 from discord import app_commands, ui
 from discord.ext import commands
@@ -166,7 +167,13 @@ class MusicCog(commands.Cog):
         configured = os.getenv("FFMPEG_PATH")
         if configured:
             return configured
-        return shutil.which("ffmpeg")
+        system_ffmpeg = shutil.which("ffmpeg")
+        if system_ffmpeg:
+            return system_ffmpeg
+        try:
+            return imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            return None
 
     def player(self, guild_id: int) -> Player:
         return self.players.setdefault(guild_id, Player())
