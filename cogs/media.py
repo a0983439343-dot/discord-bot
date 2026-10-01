@@ -74,9 +74,7 @@ class SearchCog(commands.Cog):
         if not self.gemini_client:
             return ""
 
-        request = f"{system_instruction}
-
-{prompt}"
+        request = f"{system_instruction}\\n\\n{prompt}"
 
         for attempt in range(3):
             try:
