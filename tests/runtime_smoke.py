@@ -1,10 +1,14 @@
 import asyncio
 import os
 import tempfile
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import discord
 from discord import app_commands
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import bot as bot_module
 import storage
