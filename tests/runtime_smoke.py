@@ -143,7 +143,7 @@ async def main():
         assert games.allowed(i) is True
         assert games.session_key(i) == (123, 456)
 
-        assert parse_role_ids("1, 2 3\n4") == [1, 2, 3, 4]
+        assert parse_role_ids("150000000000000001, 150000000000000002 150000000000000001\n150000000000000003") == [150000000000000001, 150000000000000002, 150000000000000003]
         assert fmt_seconds(3661) == "1 小時 1 分 1 秒"
         assert GiveawayCog.text({"prize": "test", "winners": 1, "ends_at": 9999999999}, 3)
 
