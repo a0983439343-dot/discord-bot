@@ -112,7 +112,7 @@ class ModerationCog(commands.Cog):
     async def on_automod_action(self, execution: discord.AutoModAction):
         try:
             guild = self.bot.get_guild(execution.guild_id)
-            if not guild or not self.bot.is_allowed_guild(guild.id):
+            if not guild:
                 return
             rule = await execution.fetch_rule()
             if rule.name != "朋友群 Bot｜@ 防刷":
@@ -136,9 +136,7 @@ class ModerationCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot:
             return
-        if not self.bot.is_allowed_guild(message.guild.id):
-            return
-        if not isinstance(message.author, discord.Member):
+                if not isinstance(message.author, discord.Member):
             return
         if (
             message.author.guild_permissions.administrator
