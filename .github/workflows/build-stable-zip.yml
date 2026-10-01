@@ -1,0 +1,30 @@
+name: Build Stable Discord Bot ZIP
+
+on:
+  push:
+    branches:
+      - "stable-discord-bot-20261001"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Python syntax
+        run: python3 -m py_compile bot.py storage.py cogs/*.py
+
+      - name: Build ZIP
+        run: |
+          rm -rf .git
+          zip -r ../discord-bot-stable.zip . -x "__pycache__/*" "*.pyc"
+      
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: discord-bot-stable
+          path: ../discord-bot-stable.zip
+          if-no-files-found: error
+          retention-days: 7
