@@ -74,7 +74,7 @@ class SearchCog(commands.Cog):
         if not self.gemini_client:
             return ""
 
-        request = f"{system_instruction}\\n\\n{prompt}"
+        request = f"{system_instruction}\n\n{prompt}"
 
         for attempt in range(3):
             try:
@@ -123,12 +123,9 @@ class SearchCog(commands.Cog):
                     f"https://www.youtube.com/watch?v={video_id}" if video_id else ""
                 )
                 title = entry.get("title", "未知")
-                lines.append(f"{i}. **{title}**
-{url}")
+                lines.append(f"{i}. **{title}**\n{url}")
 
-            await interaction.followup.send("🔎 YouTube 搜尋結果：
-" + "
-".join(lines))
+            await interaction.followup.send("🔎 YouTube 搜尋結果：\n" + "\n".join(lines))
         except Exception as exc:
             print(f"YouTube search error: {exc}")
             await interaction.followup.send("YouTube 搜尋這次沒回來。")
@@ -163,13 +160,10 @@ class SearchCog(commands.Cog):
                 return
 
             lines = [
-                f"{i + 1}. **{item['title']}**
-https://zh.wikipedia.org/wiki/{urllib.parse.quote(item['title'])}"
+                f"{i + 1}. **{item['title']}**\nhttps://zh.wikipedia.org/wiki/{urllib.parse.quote(item['title'])}"
                 for i, item in enumerate(items)
             ]
-            await interaction.followup.send("📖 找到這些：
-" + "
-".join(lines))
+            await interaction.followup.send("📖 找到這些：\n" + "\n".join(lines))
         except Exception as exc:
             print(f"Wikipedia search error: {exc}")
             await interaction.followup.send("Wikipedia 現在沒回應。")
@@ -207,13 +201,10 @@ https://zh.wikipedia.org/wiki/{urllib.parse.quote(item['title'])}"
                 return
 
             lines = [
-                f"{i + 1}. **{item['full_name']}** ⭐ {item.get('stargazers_count', 0)}
-{item['html_url']}"
+                f"{i + 1}. **{item['full_name']}** ⭐ {item.get('stargazers_count', 0)}\n{item['html_url']}"
                 for i, item in enumerate(items)
             ]
-            await interaction.followup.send("💻 GitHub 搜尋結果：
-" + "
-".join(lines))
+            await interaction.followup.send("💻 GitHub 搜尋結果：\n" + "\n".join(lines))
         except Exception as exc:
             print(f"GitHub search error: {exc}")
             await interaction.followup.send("GitHub 搜尋這次失敗了。")
@@ -317,14 +308,12 @@ https://zh.wikipedia.org/wiki/{urllib.parse.quote(item['title'])}"
                 item.get("ParsedText", "")
                 for item in result.get("ParsedResults", [])
             ]
-            extracted = "
-".join(
+            extracted = "\n".join(
                 text.strip() for text in texts if text.strip()
             )[:1800]
 
             await interaction.followup.send(
-                ("抓到的文字：
-" + extracted)
+                ("抓到的文字：\n" + extracted)
                 if extracted
                 else "這張圖沒抓到文字。"
             )
@@ -413,8 +402,7 @@ https://zh.wikipedia.org/wiki/{urllib.parse.quote(item['title'])}"
         await interaction.response.defer()
 
         answer = await self._generate_ai(
-            f"請翻譯成{target}：
-{text}",
+            f"請翻譯成{target}：\n{text}",
             "你是翻譯助手。只輸出翻譯結果，保留原意，語氣自然。",
         )
 
