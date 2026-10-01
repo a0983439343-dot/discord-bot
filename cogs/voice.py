@@ -64,7 +64,6 @@ class VoiceCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        allowed_guild_ids = {guild.id for guild in self.bot.guilds}
         now = time.time()
 
         # 先結算上次 Bot 離線期間已經離開語音的舊 session。
@@ -125,7 +124,7 @@ class VoiceCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-                if member.bot or not member.guild:
+        if member.bot or not member.guild:
             return
         key = (member.guild.id, member.id)
         if before.channel is None and after.channel is not None:
