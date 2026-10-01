@@ -81,15 +81,15 @@ async def main():
 
         commands = list(bot_module.bot.tree.walk_commands())
         assert len(commands) >= 120, len(commands)
-        qualified = {c.qualified_name for c in commands}
-        assert "calc" in qualified
-        assert "music.play" in qualified
-        assert "game.rps" in qualified
-        assert "giveaway.create" in qualified
-        assert "ai.ask" in qualified
-        assert "security.antispam" in qualified
-        assert "note.list" in qualified
-        assert "voice.temp" in qualified
+        qualified = {(c.parent.name if c.parent else "", c.name) for c in commands if not isinstance(c, app_commands.Group)}
+        assert ("", "calc") in qualified
+        assert ("music", "play") in qualified
+        assert ("game", "rps") in qualified
+        assert ("giveaway", "create") in qualified
+        assert ("ai", "ask") in qualified
+        assert ("security", "antispam") in qualified
+        assert ("note", "list") in qualified
+        assert ("voice", "temp") in qualified
 
         utility = bot_module.bot.get_cog("UtilityCog")
         games = bot_module.bot.get_cog("GameCog")
