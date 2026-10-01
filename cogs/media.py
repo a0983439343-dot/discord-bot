@@ -78,9 +78,12 @@ class SearchCog(commands.Cog):
 
         for attempt in range(3):
             try:
-                response = await self.gemini_client.aio.models.generate_content(
-                    model=self.gemini_model,
-                    contents=request,
+                response = await asyncio.wait_for(
+                    self.gemini_client.aio.models.generate_content(
+                        model=self.gemini_model,
+                        contents=request,
+                    ),
+                    timeout=35,
                 )
                 return (getattr(response, "text", "") or "").strip()
             except Exception as exc:
@@ -106,9 +109,12 @@ class SearchCog(commands.Cog):
                 "extract_flat": True,
                 "default_search": "ytsearch5",
             }) as ydl:
-                data = await self.bot.loop.run_in_executor(
-                    None,
-                    lambda: ydl.extract_info(f"ytsearch5:{query}", download=False),
+                data = await asyncio.wait_for(
+                    self.bot.loop.run_in_executor(
+                        None,
+                        lambda: ydl.extract_info(f"ytsearch5:{query}", download=False),
+                    ),
+                    timeout=20,
                 )
 
             entries = (data or {}).get("entries", [])[:5]
