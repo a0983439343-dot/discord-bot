@@ -212,9 +212,7 @@ class AutoReplyCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot or not message.content.strip():
             return
-        if not self.bot.is_allowed_guild(message.guild.id):
-            return
-        rules = storage.find_autoreplies(message.guild.id, message.content, message.channel.id)
+                rules = storage.find_autoreplies(message.guild.id, message.content, message.channel.id)
         if not rules:
             return
         # 一則訊息最多觸發一組，避免洗屏。
@@ -247,7 +245,7 @@ class RolePanelCog(commands.Cog):
             return
         for row in storage.get_role_panels():
             guild = self.bot.get_guild(row["guild_id"])
-            if not guild or not self.bot.is_allowed_guild(guild.id) or not row["message_id"]:
+            if not guild or not row["message_id"]:
                 continue
             try:
                 self.bot.add_view(
@@ -393,7 +391,7 @@ class PollCog(commands.Cog):
             return
         for row in storage.list_active_polls():
             guild = self.bot.get_guild(row["guild_id"])
-            if not guild or not self.bot.is_allowed_guild(guild.id) or not row["message_id"]:
+            if not guild or not row["message_id"]:
                 continue
             try:
                 options = json.loads(row["options"])
