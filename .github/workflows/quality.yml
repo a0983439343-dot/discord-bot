@@ -19,8 +19,56 @@ jobs:
         run: python -m py_compile bot.py storage.py cogs/*.py
       - name: Install Python dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Static undefined-name check
+        run: |
+          pip install ruff
+          ruff check --select E9,F821 .
       - name: Smoke import bot modules
         run: python -c "import storage; storage.init_db(); import bot; print('Python bot module import OK')"
+      - name: Smoke register every Cog command
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import bot as bot_module
+
+          modules = [
+              bot_module.utility,
+              bot_module.social,
+              bot_module.games,
+              bot_module.music,
+              bot_module.moderation,
+              bot_module.profile,
+              bot_module.voice,
+              bot_module.giveaway,
+              bot_module.media,
+              bot_module.settings,
+              bot_module.help_cog,
+          ]
+
+          async def main():
+              for module in modules:
+                  await module.setup(bot_module.bot)
+
+              commands = list(bot_module.bot.tree.walk_commands())
+              seen = set()
+              duplicates = []
+
+              for command in commands:
+                  parent = command.parent.qualified_name if command.parent else ""
+                  key = (parent, command.name)
+                  if key in seen:
+                      duplicates.append(" ".join(key))
+                  seen.add(key)
+
+              top_level = len(bot_module.bot.tree.get_commands())
+              assert not duplicates, f"Duplicate commands: {duplicates}"
+              assert top_level >= 10, f"Too few top-level commands: {top_level}"
+              assert len(commands) >= 90, f"Too few total commands: {len(commands)}"
+              print(f"Command registration OK: {len(commands)} commands, {top_level} top-level entries")
+
+          asyncio.run(main())
+          PY
       - name: Check JavaScript syntax
         run: node --check app.js
       - name: Check command catalog syntax
