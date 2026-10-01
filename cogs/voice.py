@@ -40,7 +40,7 @@ class VoiceCog(commands.Cog):
     @voice.command(name="notice", description="設定誰進出語音時要在哪個文字頻道通知")
     @app_commands.describe(channel="通知頻道")
     async def notice(self, interaction, channel: discord.TextChannel):
-        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
             await interaction.response.send_message("這個設定要管理伺服器權限。", ephemeral=True)
             return
         storage.set_setting(interaction.guild.id, "voice_notice_channel_id", channel.id)
@@ -48,7 +48,7 @@ class VoiceCog(commands.Cog):
 
     @voice.command(name="noticeoff", description="關閉語音進出通知")
     async def noticeoff(self, interaction):
-        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_guild:
             await interaction.response.send_message("這個設定要管理伺服器權限。", ephemeral=True)
             return
         storage.set_setting(interaction.guild.id, "voice_notice_channel_id", 0)
@@ -56,6 +56,9 @@ class VoiceCog(commands.Cog):
 
     @voice.command(name="stats", description="看看自己累積待在語音多久")
     async def stats(self, interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         data = storage.get_profile(interaction.guild.id, interaction.user.id)
         total = int(data["voice_seconds"])
         h, rem = divmod(total, 3600)
