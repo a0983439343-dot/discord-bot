@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bot as bot_module
 import storage
 from cogs.games import GameCog
-from cogs.giveaway import text as giveaway_text
+from cogs.giveaway import GiveawayCog
 from cogs.media import SearchCog
 from cogs.moderation import ModerationCog
 from cogs.music import MusicCog
@@ -145,7 +145,7 @@ async def main():
 
         assert parse_role_ids("1, 2 3\n4") == [1, 2, 3, 4]
         assert fmt_seconds(3661) == "1 小時 1 分 1 秒"
-        assert giveaway_text({"prize": "test", "ends_at": 9999999999}, 3)
+        assert GiveawayCog.text({"prize": "test", "winners": 1, "ends_at": 9999999999}, 3)
 
         i = FakeInteraction(guild=False)
         await callback(MusicCog, "leave")(music, i)
