@@ -40,7 +40,7 @@ class GameCog(commands.Cog):
         self.answer_sessions = set()
 
     def allowed(self, interaction: discord.Interaction) -> bool:
-        return bool(interaction.guild and self.bot.is_allowed_guild(interaction.guild.id))
+        return bool(interaction.guild)
 
     def session_key(self, interaction: discord.Interaction):
         return (interaction.guild.id if interaction.guild else 0, interaction.user.id)
