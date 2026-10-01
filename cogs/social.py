@@ -212,7 +212,7 @@ class AutoReplyCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot or not message.content.strip():
             return
-                rules = storage.find_autoreplies(message.guild.id, message.content, message.channel.id)
+        rules = storage.find_autoreplies(message.guild.id, message.content, message.channel.id)
         if not rules:
             return
         # 一則訊息最多觸發一組，避免洗屏。
