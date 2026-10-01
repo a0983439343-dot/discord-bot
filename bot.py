@@ -29,11 +29,6 @@ from cogs import (
 
 OWNER_ID = int(os.getenv("OWNER_ID", "1140900506198351924"))
 ALLOWED_ROLE_ID = int(os.getenv("ALLOWED_ROLE_ID", "1509577038443319416"))
-DEFAULT_GUILD_IDS = [1509184700294627430]
-GUILD_IDS = [
-    int(x.strip()) for x in os.getenv("GUILD_IDS", "").split(",")
-    if x.strip().isdigit()
-] or DEFAULT_GUILD_IDS
 MAX_COUNT = 1_000_000_000_000
 MAX_CONTENT_LEN = 2000
 
@@ -101,37 +96,22 @@ class Bot(commands.Bot):
         if failed_modules:
             raise RuntimeError("Cog 載入失敗: " + ", ".join(failed_modules))
 
-        for guild_id in GUILD_IDS:
-            guild = discord.Object(id=guild_id)
-            self.tree.copy_global_to(guild=guild)
-            try:
-                await self.tree.sync(guild=guild)
-                print(f"Synced slash commands to guild {guild_id}")
-            except Exception as exc:
-                print(f"Slash command sync failed for {guild_id}: {exc}")
-
-    def is_allowed_guild(self, guild_id: int) -> bool:
-        return guild_id in set(GUILD_IDS)
+        try:
+            synced = await self.tree.sync()
+            print(f"Synced {len(synced)} global slash commands")
+        except Exception:
+            print("Global slash command sync failed")
+            traceback.print_exc()
 
     async def on_guild_join(self, guild: discord.Guild):
-        if not self.is_allowed_guild(guild.id):
-            try:
-                await guild.leave()
-                print(f"Left non-whitelisted guild {guild.id}")
-            except Exception:
-                traceback.print_exc()
+        print(f"Joined guild {guild.id} ({guild.name})")
 
     async def on_ready(self):
         print(f"Logged in as {self.user} ({self.user.id})")
-        for guild in list(self.guilds):
-            if not self.is_allowed_guild(guild.id):
-                try:
-                    await guild.leave()
-                    print(f"Left non-whitelisted guild {guild.id}")
-                except Exception:
-                    traceback.print_exc()
+        print(f"Connected guilds: {len(self.guilds)}")
         if not reminder_worker.is_running():
             reminder_worker.start()
+
 
     async def close(self):
         reminder_worker.cancel()
@@ -384,8 +364,6 @@ async def on_tree_error(interaction: discord.Interaction, error: app_commands.Ap
 async def reminder_worker():
     try:
         for row in storage.due_reminders():
-            if not bot.is_allowed_guild(row["guild_id"]):
-                continue
             channel = bot.get_channel(row["channel_id"])
             if not channel:
                 continue
@@ -397,8 +375,6 @@ async def reminder_worker():
 
         now = __import__("time").time()
         for row in storage.list_active_polls():
-            if not bot.is_allowed_guild(row["guild_id"]):
-                continue
             if row["ends_at"] and row["ends_at"] <= now:
                 storage.close_poll(row["id"])
                 channel = bot.get_channel(row["channel_id"])
@@ -413,8 +389,6 @@ async def reminder_worker():
                         pass
 
         for row in storage.list_active_giveaways():
-            if not bot.is_allowed_guild(row["guild_id"]):
-                continue
             if row["ends_at"] <= now:
                 guild = bot.get_guild(row["guild_id"])
                 if guild:
