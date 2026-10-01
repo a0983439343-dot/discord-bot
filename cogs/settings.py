@@ -112,6 +112,9 @@ class SettingsCog(commands.Cog):
 
     @note.command(name="list", description="看看自己存過哪些筆記")
     async def note_list(self, interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         rows = storage.list_notes(interaction.guild.id, interaction.user.id)
         if not rows:
             await interaction.response.send_message("你還沒有筆記。", ephemeral=True)
@@ -122,6 +125,9 @@ class SettingsCog(commands.Cog):
     @note.command(name="show", description="查看自己的指定筆記")
     @app_commands.describe(note_id="筆記編號")
     async def note_show(self, interaction, note_id: int):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         row = storage.get_note(interaction.guild.id, interaction.user.id, note_id)
         if not row:
             await interaction.response.send_message("找不到這篇筆記。", ephemeral=True)
@@ -131,6 +137,9 @@ class SettingsCog(commands.Cog):
     @note.command(name="delete", description="刪掉自己的指定筆記")
     @app_commands.describe(note_id="筆記編號")
     async def note_delete(self, interaction, note_id: int):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         ok = storage.delete_note(interaction.guild.id, interaction.user.id, note_id)
         await interaction.response.send_message("刪掉了。" if ok else "找不到這篇筆記。", ephemeral=True)
 
