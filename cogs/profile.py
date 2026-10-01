@@ -38,6 +38,9 @@ class ProfileCog(commands.Cog):
     @app_commands.command(name="profile", description="看看自己的等級、聊天、語音和遊戲資料")
     @app_commands.describe(member="不填就是看自己")
     async def profile(self, interaction: discord.Interaction, member: discord.Member | None = None):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         target = member or interaction.user
         data = storage.get_profile(interaction.guild.id, target.id)
         next_xp = data["level"] * 500
@@ -68,6 +71,9 @@ class ProfileCog(commands.Cog):
         app_commands.Choice(name="遊戲場次", value="games_played"),
     ])
     async def leaderboard(self, interaction, kind: app_commands.Choice[str] | None = None):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         field = kind.value if kind else "xp"
         rows = storage.leaderboard(interaction.guild.id, field, 10)
         if not rows:
@@ -97,6 +103,9 @@ class ProfileCog(commands.Cog):
 
     @app_commands.command(name="serverinfo", description="看看這個伺服器的基本資訊")
     async def serverinfo(self, interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         guild = interaction.guild
         embed = discord.Embed(title=f"🏠 {guild.name}", color=0x5865F2)
         if guild.icon:
@@ -131,6 +140,9 @@ class ProfileCog(commands.Cog):
 
     @app_commands.command(name="achievements", description="看看自己目前解鎖了哪些成就")
     async def achievements(self, interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         data = storage.get_profile(interaction.guild.id, interaction.user.id)
         items = [
             (data["msg_count"] >= 1, "💬 第一次聊天"),
@@ -151,6 +163,9 @@ class ProfileCog(commands.Cog):
 
     @app_commands.command(name="membercount", description="看看伺服器現在有多少成員")
     async def membercount(self, interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         await interaction.response.send_message(f"現在這個伺服器有 **{interaction.guild.member_count}** 位成員。")
 
 
