@@ -28,9 +28,7 @@ class ProfileCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot:
             return
-        if not self.bot.is_allowed_guild(message.guild.id):
-            return
-        result = storage.add_message_xp(message.guild.id, message.author.id)
+                result = storage.add_message_xp(message.guild.id, message.author.id)
         if result["level"] > result["old_level"]:
             try:
                 await message.channel.send(f"{message.author.mention} 升到 **Lv.{result['level']}** 了，恭喜啦。🎉")
