@@ -96,12 +96,17 @@ class Bot(commands.Bot):
         if failed_modules:
             raise RuntimeError("Cog 載入失敗: " + ", ".join(failed_modules))
 
-        try:
-            synced = await self.tree.sync()
-            print(f"Synced {len(synced)} global slash commands")
-        except Exception:
-            print("Global slash command sync failed")
-            traceback.print_exc()
+        for attempt in range(3):
+            try:
+                synced = await self.tree.sync()
+                print(f"Synced {len(synced)} global slash commands")
+                break
+            except Exception as exc:
+                print(f"Global slash command sync failed (attempt {attempt + 1}/3): {exc!r}")
+                if attempt < 2:
+                    await asyncio.sleep(2 * (attempt + 1))
+                else:
+                    traceback.print_exc()
 
     async def on_guild_join(self, guild: discord.Guild):
         print(f"Joined guild {guild.id} ({guild.name})")
