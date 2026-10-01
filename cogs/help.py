@@ -51,7 +51,7 @@ CATEGORIES = [
         ("/game reaction", "測反應速度。"),
         ("/game typing", "看看打字速度。"),
         ("/game memory", "玩記憶小遊戲。"),
-        ("/game mathgame", "來一道即時計算題。"),
+        ("/game math", "來一道即時計算題。"),
         ("/game 8ball", "問問題看我怎麼回。"),
         ("/game truth", "抽 Truth 題目。"),
         ("/game dare", "抽 Dare 挑戰。"),
