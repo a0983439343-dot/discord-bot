@@ -141,7 +141,7 @@ class MemberEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        if member.bot or not self.bot.is_allowed_guild(member.guild.id):
+        if member.bot:
             return
         role_id = storage.get_setting(member.guild.id, "autorole_id", 0)
         if role_id:
@@ -162,9 +162,7 @@ class MemberEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
-        if not self.bot.is_allowed_guild(member.guild.id):
-            return
-        channel_id = storage.get_setting(member.guild.id, "goodbye_channel_id", 0)
+                channel_id = storage.get_setting(member.guild.id, "goodbye_channel_id", 0)
         channel = member.guild.get_channel(int(channel_id)) if channel_id else None
         if channel:
             msg = storage.get_setting(member.guild.id, "goodbye_message", "{user} 離開了，掰。")
