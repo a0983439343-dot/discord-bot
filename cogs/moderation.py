@@ -136,7 +136,7 @@ class ModerationCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if not message.guild or message.author.bot:
             return
-                if not isinstance(message.author, discord.Member):
+        if not isinstance(message.author, discord.Member):
             return
         if (
             message.author.guild_permissions.administrator
