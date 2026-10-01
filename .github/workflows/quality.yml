@@ -69,6 +69,127 @@ jobs:
 
           asyncio.run(main())
           PY
+      - name: Smoke test storage behavior
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import tempfile
+          import storage
+
+          original = storage.DB_PATH
+          with tempfile.TemporaryDirectory() as tmp:
+              storage.DB_PATH = os.path.join(tmp, "bot.sqlite3")
+              storage.init_db()
+
+              gid, uid, cid = 123, 456, 789
+
+              storage.set_setting(gid, "flag", True)
+              assert storage.get_setting(gid, "flag") is True
+              assert storage.get_setting(gid, "missing", "fallback") == "fallback"
+
+              rid = storage.add_autoreply(gid, "hello", "hi")
+              assert len(storage.find_autoreplies(gid, "hello world", cid)) == 1
+              assert storage.update_autoreply(gid, rid, response="hello back")
+              assert storage.find_autoreplies(gid, "hello", cid)[0]["response"] == "hello back"
+              assert storage.delete_autoreply(gid, rid)
+              assert not storage.find_autoreplies(gid, "hello", cid)
+
+              reminder = storage.add_reminder(gid, uid, cid, "test", 100)
+              assert len(storage.due_reminders(100)) == 1
+              assert storage.cancel_reminder(gid, uid, reminder)
+              assert not storage.due_reminders(100)
+
+              result = storage.add_message_xp(gid, uid, amount=500)
+              assert result["msg_count"] == 1
+              assert result["level"] == 2
+              storage.add_voice_seconds(gid, uid, 61)
+              storage.record_game(gid, uid, won=True)
+              profile = storage.get_profile(gid, uid)
+              assert profile["voice_seconds"] == 61
+              assert profile["games_played"] == 1
+              assert profile["games_won"] == 1
+
+              note_id = storage.add_note(gid, uid, "t", "c")
+              assert storage.get_note(gid, uid, note_id)["content"] == "c"
+              assert storage.delete_note(gid, uid, note_id)
+
+              warning_id = storage.add_warning(gid, uid, 999, "test")
+              assert storage.get_warnings(gid, uid)[0]["id"] == warning_id
+
+              panel_id = storage.save_role_panel(gid, cid, 1, "t", "d", "buttons", [11])
+              assert storage.delete_role_panel(gid, panel_id)
+
+              poll_id = storage.save_poll(gid, cid, 2, "q", ["a", "b"], False, False, None)
+              storage.replace_poll_votes(poll_id, uid, [1])
+              assert storage.get_poll_counts(poll_id) == {1: 1}
+              storage.close_poll(poll_id)
+              storage.delete_poll(poll_id)
+
+              storage.add_temp_channel(gid, 333)
+              assert storage.list_temp_channels(gid)[0]["channel_id"] == 333
+              storage.remove_temp_channel(333)
+
+              storage.start_voice_session(gid, uid, 444, 100)
+              assert storage.get_voice_session(gid, uid)["channel_id"] == 444
+              assert storage.finish_voice_session(gid, uid)["channel_id"] == 444
+
+          storage.DB_PATH = original
+          print("Storage behavior smoke test OK")
+          PY
+      - name: Smoke test Discord feature constructors
+        run: |
+          python - <<'PY'
+          import discord
+          trigger = discord.AutoModTrigger(mention_limit=5)
+          action = discord.AutoModRuleAction()
+          assert trigger.mention_limit == 5
+          assert action is not None
+          print("Discord feature constructors OK")
+          PY
+      - name: Verify help catalog against registered commands
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import bot as bot_module
+          from cogs.help import CATEGORIES
+
+          async def main():
+              for module in [
+                  bot_module.utility,
+                  bot_module.social,
+                  bot_module.games,
+                  bot_module.music,
+                  bot_module.moderation,
+                  bot_module.profile,
+                  bot_module.voice,
+                  bot_module.giveaway,
+                  bot_module.media,
+                  bot_module.settings,
+                  bot_module.help_cog,
+              ]:
+                  if module.__name__ != "cogs.help":
+                      await module.setup(bot_module.bot)
+
+              registered = {
+                  command.qualified_name
+                  for command in bot_module.bot.tree.walk_commands()
+                  if not isinstance(command, discord_app_commands.Group)
+              }
+              listed = {
+                  name.lstrip("/")
+                  for _, _, items in CATEGORIES
+                  for name, _ in items
+              }
+              missing = sorted(listed - registered)
+              if missing:
+                  raise AssertionError(f"Help catalog missing commands: {missing}")
+              print(f"Help catalog OK: {len(listed)} documented commands")
+          
+          from discord import app_commands as discord_app_commands
+          asyncio.run(main())
+          PY
       - name: Check JavaScript syntax
         run: node --check app.js
       - name: Check command catalog syntax
