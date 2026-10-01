@@ -183,7 +183,7 @@ class MusicCog(commands.Cog):
         def task():
             with yt_dlp.YoutubeDL(YTDL_SEARCH) as ydl:
                 return ydl.extract_info(query, download=False)
-        data = await loop.run_in_executor(None, task)
+        data = await asyncio.wait_for(loop.run_in_executor(None, task), timeout=20)
         if not data:
             return []
         entries = data.get("entries") if isinstance(data, dict) else None
@@ -214,7 +214,7 @@ class MusicCog(commands.Cog):
                 data = ydl.extract_info(song.webpage_url, download=False)
                 stream_url = data.get("url")
                 return stream_url, data.get("title") or song.title, data.get("duration")
-        stream_url, title, duration = await loop.run_in_executor(None, task)
+        stream_url, title, duration = await asyncio.wait_for(loop.run_in_executor(None, task), timeout=30)
         if not stream_url:
             raise RuntimeError("no stream")
         return stream_url, title, duration
@@ -274,7 +274,9 @@ class MusicCog(commands.Cog):
 
             ffmpeg = self.ffmpeg_executable()
             if not ffmpeg:
-                return
+                player.current = None
+                player.skip_current = False
+                continue
 
             try:
                 stream_url, title, duration = await self.make_stream(song)
@@ -332,7 +334,12 @@ class MusicCog(commands.Cog):
         def after(error):
             if error:
                 print("Music player error:", repr(error))
-            asyncio.run_coroutine_threadsafe(self.after_track(guild_id, error), loop)
+            if loop.is_closed():
+                return
+            try:
+                asyncio.run_coroutine_threadsafe(self.after_track(guild_id, error), loop)
+            except RuntimeError:
+                pass
         return after
 
     async def after_track(self, guild_id: int, error=None):
