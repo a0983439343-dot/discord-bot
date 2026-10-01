@@ -190,6 +190,8 @@ jobs:
           from discord import app_commands as discord_app_commands
           asyncio.run(main())
           PY
+      - name: Offline runtime smoke test
+        run: python tests/runtime_smoke.py
       - name: Check JavaScript syntax
         run: node --check app.js
       - name: Check command catalog syntax
