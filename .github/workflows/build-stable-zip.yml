@@ -18,13 +18,15 @@ jobs:
 
       - name: Build ZIP
         run: |
-          rm -rf .git
-          zip -r ../discord-bot-stable.zip . -x "__pycache__/*" "*.pyc"
-      
+          rm -rf .git __pycache__ cogs/__pycache__
+          rm -f discord-bot-stable.zip
+          zip -r discord-bot-stable.zip . -x "__pycache__/*" "*/__pycache__/*" "*.pyc"
+          test -s discord-bot-stable.zip
+
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
           name: discord-bot-stable
-          path: ../discord-bot-stable.zip
+          path: discord-bot-stable.zip
           if-no-files-found: error
           retention-days: 7
