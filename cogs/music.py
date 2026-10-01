@@ -541,6 +541,9 @@ class MusicCog(commands.Cog):
 
     @music.command(name="leave", description="讓 Bot 離開語音")
     async def leave(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("這個要在伺服器裡用。", ephemeral=True)
+            return
         await self.stop_player(interaction.guild.id)
         await interaction.response.send_message("好，我先離開語音。")
 
