@@ -12,9 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import bot as bot_module
 import storage
-from cogs.games import GamesCog
+from cogs.games import GameCog
 from cogs.giveaway import text as giveaway_text
-from cogs.media import MediaCog
+from cogs.media import SearchCog
 from cogs.moderation import ModerationCog
 from cogs.music import MusicCog
 from cogs.profile import fmt_seconds
@@ -92,8 +92,8 @@ async def main():
         assert "voice.temp" in qualified
 
         utility = bot_module.bot.get_cog("UtilityCog")
-        games = bot_module.bot.get_cog("GamesCog")
-        media = bot_module.bot.get_cog("MediaCog")
+        games = bot_module.bot.get_cog("GameCog")
+        media = bot_module.bot.get_cog("SearchCog")
         moderation = bot_module.bot.get_cog("ModerationCog")
         music = bot_module.bot.get_cog("MusicCog")
         settings = bot_module.bot.get_cog("SettingsCog")
@@ -160,7 +160,7 @@ async def main():
         assert i.response.messages[-1][1].get("ephemeral") is True
 
         i = FakeInteraction(guild=False)
-        await callback(MediaCog, "ask")(media, i, "hello")
+        await callback(SearchCog, "ask")(media, i, "hello")
         assert i.response.messages[-1][1].get("ephemeral") is True
 
         assert moderation.can_manage(FakeInteraction(guild=False)) is False
