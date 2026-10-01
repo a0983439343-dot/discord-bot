@@ -64,14 +64,11 @@ class VoiceCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        allowed_guild_ids = {guild.id for guild in self.bot.guilds if self.bot.is_allowed_guild(guild.id)}
+        allowed_guild_ids = {guild.id for guild in self.bot.guilds}
         now = time.time()
 
         # 先結算上次 Bot 離線期間已經離開語音的舊 session。
         for row in storage.list_voice_sessions():
-            if row["guild_id"] not in allowed_guild_ids:
-                storage.finish_voice_session(row["guild_id"], row["user_id"])
-                continue
             guild = self.bot.get_guild(row["guild_id"])
             member = guild.get_member(row["user_id"]) if guild else None
             if not member or not member.voice or not member.voice.channel:
@@ -84,8 +81,6 @@ class VoiceCog(commands.Cog):
         self.temp_channels.clear()
 
         for guild in self.bot.guilds:
-            if not self.bot.is_allowed_guild(guild.id):
-                continue
             for voice_channel in guild.voice_channels:
                 for member in voice_channel.members:
                     if member.bot:
@@ -112,7 +107,7 @@ class VoiceCog(commands.Cog):
 
         for row in storage.list_temp_channels():
             channel = self.bot.get_channel(row["channel_id"])
-            if not channel or not self.bot.is_allowed_guild(row["guild_id"]):
+            if not channel:
                 storage.remove_temp_channel(row["channel_id"])
                 continue
             self.temp_channels.add(channel.id)
@@ -130,9 +125,7 @@ class VoiceCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if not self.bot.is_allowed_guild(member.guild.id):
-            return
-        if member.bot or not member.guild:
+                if member.bot or not member.guild:
             return
         key = (member.guild.id, member.id)
         if before.channel is None and after.channel is not None:
