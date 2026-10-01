@@ -162,7 +162,7 @@ class MemberEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
-                channel_id = storage.get_setting(member.guild.id, "goodbye_channel_id", 0)
+        channel_id = storage.get_setting(member.guild.id, "goodbye_channel_id", 0)
         channel = member.guild.get_channel(int(channel_id)) if channel_id else None
         if channel:
             msg = storage.get_setting(member.guild.id, "goodbye_message", "{user} 離開了，掰。")
